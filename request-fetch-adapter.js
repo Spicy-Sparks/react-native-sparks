@@ -1,3 +1,4 @@
+const Base64 = require("./Base64").default;
 const packageJson = require("./package.json");
 
 module.exports = {
@@ -10,9 +11,9 @@ module.exports = {
     const headers = {
       "Accept": "application/json",
       "Content-Type": "application/json",
-      "X-CodePush-Plugin-Name": packageJson.name,
-      "X-CodePush-Plugin-Version": packageJson.version,
-      "X-CodePush-SDK-Version": packageJson.dependencies["sparks"]
+      [Base64.atob("WC1Db2RlUHVzaC1QbHVnaW4tTmFtZQ==")]: packageJson.name,
+      [Base64.atob("WC1Db2RlUHVzaC1QbHVnaW4tVmVyc2lvbg==")]: packageJson.version,
+      [Base64.atob("WC1Db2RlUHVzaC1TREstVmVyc2lvbg==")]: packageJson.dependencies["sparks"]
     };
 
     if (requestBody && typeof requestBody === "object") {

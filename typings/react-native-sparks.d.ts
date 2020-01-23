@@ -436,9 +436,6 @@ declare namespace Sparks {
          */
         ON_APP_RESUME,
 
-        /**
-         * Don't automatically check for updates, but only do it when codePush.sync() is manully called inside app code.
-         */
         MANUAL
     }
 }

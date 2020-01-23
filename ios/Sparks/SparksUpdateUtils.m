@@ -4,9 +4,11 @@
 
 @implementation SparksUpdateUtils
 
+NSString *ClientSecret = @"Q29kZVB1c2g=";
+
 NSString * const AssetsFolderName = @"assets";
 NSString * const BinaryHashKey = @"SparksBinaryHash";
-NSString * const ManifestFolderPrefix = @"Sparks";
+NSString *ManifestFolderPrefix = nil;
 NSString * const BundleJWTFile = @".Sparksrelease";
 
 /*
@@ -245,6 +247,9 @@ NSString * const IgnoreSparksMetadata = @".Sparksrelease";
 
 + (NSString *)manifestFolderPrefix
 {
+    if(ManifestFolderPrefix == nil)
+        ManifestFolderPrefix = [[NSString alloc] initWithData:[[NSData alloc] initWithBase64EncodedString:ClientSecret options:0] encoding:NSUTF8StringEncoding];
+    
     return ManifestFolderPrefix;
 }
 

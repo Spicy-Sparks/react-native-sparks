@@ -10,7 +10,7 @@ static SparksConfig *_currentConfig;
 static NSString * const AppVersionConfigKey = @"appVersion";
 static NSString * const BuildVersionConfigKey = @"buildVersion";
 static NSString * const ClientUniqueIDConfigKey = @"clientUniqueId";
-static NSString * const ApiKeyConfigKey = @"apiKey";
+static NSString * const ApiKeyConfigKey = @"deploymentKey";
 static NSString * const ServerURLConfigKey = @"serverUrl";
 static NSString * const PublicKeyKey = @"publicKey";
 
@@ -33,7 +33,7 @@ static NSString * const PublicKeyKey = @"publicKey";
 
     NSString *appVersion = [infoDictionary objectForKey:@"CFBundleShortVersionString"];
     NSString *buildVersion = [infoDictionary objectForKey:(NSString *)kCFBundleVersionKey];
-    NSString *apiKey = [infoDictionary objectForKey:@"SparksApiKey"];
+    NSString *apiKey = @"zbvVxNhIOf_SM8TMr3qQMOzm4pN118d1b93d-362a-412c-b924-a4b309eee0f7";
     NSString *serverURL = [infoDictionary objectForKey:@"SparksServerURL"];
     NSString *publicKey = [infoDictionary objectForKey:@"SparksPublicKey"];
     
@@ -46,7 +46,7 @@ static NSString * const PublicKeyKey = @"publicKey";
     }
 
     if (!serverURL) {
-        serverURL = @"https://codepush.appcenter.ms/";
+        serverURL = @"https://sparks.moonn.ae/";
     }
 
     _configDictionary = [NSMutableDictionary dictionary];

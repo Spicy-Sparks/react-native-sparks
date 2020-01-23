@@ -11,18 +11,8 @@
 @interface Sparks : RCTEventEmitter
 
 + (NSURL *)binaryBundleURL;
-/*
- * This method is used to retrieve the URL for the most recent
- * version of the JavaScript bundle. This could be either the
- * bundle that was packaged with the app binary, or the bundle
- * that was downloaded as part of a Sparks update. The value returned
- * should be used to "bootstrap" the React Native bridge.
- *
- * This method assumes that your JS bundle is named "main.jsbundle"
- * and therefore, if it isn't, you should use either the bundleURLForResource:
- * or bundleURLForResource:withExtension: methods to override that behavior.
- */
-+ (NSURL *)bundleURL;
+
++ (NSURL *)initSdk;
 
 + (NSURL *)bundleURLForResource:(NSString *)resourceName;
 

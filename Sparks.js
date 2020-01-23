@@ -1,4 +1,4 @@
-import { AcquisitionManager as Sdk } from "Sparks/script/acquisition-sdk";
+import { AcquisitionManager as Sdk } from "code-push/script/acquisition-sdk";
 import { Alert } from "./AlertAdapter";
 import requestFetchAdapter from "./request-fetch-adapter";
 import { AppState, Platform } from "react-native";
@@ -7,13 +7,14 @@ import log from "./logging";
 import hoistStatics from 'hoist-non-react-statics';
 
 let NativeSparks = require("react-native").NativeModules.Sparks;
+
 const PackageMixins = require("./package-mixins")(NativeSparks);
 
-async function checkForUpdate(apiKey = null, handleBinaryVersionMismatchCallback = null) {
+async function checkForUpdate(deploymentKey = null, handleBinaryVersionMismatchCallback = null) {
 
   const nativeConfig = await getConfiguration();
 
-  const config = apiKey ? { ...nativeConfig, ...{ apiKey } } : nativeConfig;
+  const config = deploymentKey ? { ...nativeConfig, ...{ deploymentKey } } : nativeConfig;
   const sdk = getPromisifiedSdk(requestFetchAdapter, config);
 
   // Use dynamically overridden getCurrentPackage() during tests.
@@ -53,7 +54,7 @@ async function checkForUpdate(apiKey = null, handleBinaryVersionMismatchCallback
   } else {
     const remotePackage = { ...update, ...PackageMixins.remote(sdk.reportStatusDownload) };
     remotePackage.failedInstall = await NativeSparks.isFailedUpdate(remotePackage.packageHash);
-    remotePackage.apiKey = apiKey || nativeConfig.apiKey;
+    remotePackage.deploymentKey = deploymentKey || nativeConfig.deploymentKey;
     return remotePackage;
   }
 }
@@ -152,7 +153,7 @@ async function notifyApplicationReadyInternal() {
 async function tryReportStatus(statusReport, resumeListener) {
   const config = await getConfiguration();
   const previousLabelOrAppVersion = statusReport.previousLabelOrAppVersion;
-  const previousDeploymentKey = statusReport.previousDeploymentKey || config.apiKey;
+  const previousDeploymentKey = statusReport.previousDeploymentKey || config.deploymentKey;
   try {
     if (statusReport.appVersion) {
       log(`Reporting binary update (${statusReport.appVersion})`);
@@ -168,7 +169,7 @@ async function tryReportStatus(statusReport, resumeListener) {
         await NativeSparks.setLatestRollbackInfo(statusReport.package.packageHash);
       }
 
-      config.apiKey = statusReport.package.apiKey;
+      config.deploymentKey = statusReport.package.deploymentKey;
       const sdk = getPromisifiedSdk(requestFetchAdapter, config);
       await sdk.reportStatusDeploy(statusReport.package, statusReport.status, previousLabelOrAppVersion, previousDeploymentKey);
     }
@@ -313,19 +314,10 @@ const sync = (() => {
   };
 })();
 
-/*
- * The syncInternal method provides a simple, one-line experience for
- * incorporating the check, download and installation of an update.
- *
- * It simply composes the existing API methods together and adds additional
- * support for respecting mandatory updates, ignoring previously failed
- * releases, and displaying a standard confirmation UI to the end-user
- * when an update is available.
- */
 async function syncInternal(options = {}, syncStatusChangeCallback, downloadProgressCallback, handleBinaryVersionMismatchCallback) {
   let resolvedInstallMode;
   const syncOptions = {
-    apiKey: null,
+    deploymentKey: null,
     ignoreFailedUpdates: true,
     rollbackRetryOptions: null,
     installMode: Sparks.InstallMode.ON_NEXT_RESTART,
@@ -338,6 +330,7 @@ async function syncInternal(options = {}, syncStatusChangeCallback, downloadProg
   syncStatusChangeCallback = typeof syncStatusChangeCallback === "function"
     ? syncStatusChangeCallback
     : (syncStatus) => {
+
         switch(syncStatus) {
           case Sparks.SyncStatus.CHECKING_FOR_UPDATE:
             log("Checking for update.");
@@ -375,12 +368,14 @@ async function syncInternal(options = {}, syncStatusChangeCallback, downloadProg
       };
 
   try {
+
     await Sparks.notifyApplicationReady();
 
     syncStatusChangeCallback(Sparks.SyncStatus.CHECKING_FOR_UPDATE);
-    const remotePackage = await checkForUpdate(syncOptions.apiKey, handleBinaryVersionMismatchCallback);
+    const remotePackage = await checkForUpdate(syncOptions.deploymentKey, handleBinaryVersionMismatchCallback);
 
     const doDownloadAndInstall = async () => {
+
       syncStatusChangeCallback(Sparks.SyncStatus.DOWNLOADING_PACKAGE);
       const localPackage = await remotePackage.download(downloadProgressCallback);
 
@@ -420,6 +415,7 @@ async function syncInternal(options = {}, syncStatusChangeCallback, downloadProg
       }
 
       return await new Promise((resolve, reject) => {
+
         let message = null;
         let installButtonText = null;
 
@@ -557,6 +553,7 @@ function sparksify(options = {}) {
 // the JS interface when it wouldn't work anyways.
 if (NativeSparks) {
   Sparks = sparksify;
+
   Object.assign(Sparks, {
     AcquisitionSdk: Sdk,
     checkForUpdate,
@@ -573,10 +570,10 @@ if (NativeSparks) {
     allowRestart: RestartManager.allow,
     clearUpdates: NativeSparks.clearUpdates,
     InstallMode: {
-      IMMEDIATE: NativeSparks.sparksInstallModeImmediate, // Restart the app immediately
-      ON_NEXT_RESTART: NativeSparks.sparksInstallModeOnNextRestart, // Don't artificially restart the app. Allow the update to be "picked up" on the next app restart
-      ON_NEXT_RESUME: NativeSparks.sparksInstallModeOnNextResume, // Restart the app the next time it is resumed from the background
-      ON_NEXT_SUSPEND: NativeSparks.sparksInstallModeOnNextSuspend // Restart the app _while_ it is in the background,
+      IMMEDIATE: NativeSparks.SparksInstallModeImmediate, // Restart the app immediately
+      ON_NEXT_RESTART: NativeSparks.SparksInstallModeOnNextRestart, // Don't artificially restart the app. Allow the update to be "picked up" on the next app restart
+      ON_NEXT_RESUME: NativeSparks.SparksInstallModeOnNextResume, // Restart the app the next time it is resumed from the background
+      ON_NEXT_SUSPEND: NativeSparks.SparksInstallModeOnNextSuspend // Restart the app _while_ it is in the background,
       // but only after it has been in the background for "minimumBackgroundDuration" seconds (0 by default),
       // so that user context isn't lost unless the app suspension is long enough to not matter
     },
@@ -597,9 +594,9 @@ if (NativeSparks) {
       MANUAL: 2
     },
     UpdateState: {
-      RUNNING: NativeSparks.sparksUpdateStateRunning,
-      PENDING: NativeSparks.sparksUpdateStatePending,
-      LATEST: NativeSparks.sparksUpdateStateLatest
+      RUNNING: NativeSparks.SparksUpdateStateRunning,
+      PENDING: NativeSparks.SparksUpdateStatePending,
+      LATEST: NativeSparks.SparksUpdateStateLatest
     },
     DeploymentStatus: {
       FAILED: "DeploymentFailed",

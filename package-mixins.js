@@ -12,9 +12,9 @@ module.exports = (NativeSparks) => {
 
         let downloadProgressSubscription;
         if (downloadProgressCallback) {
-          const codePushEventEmitter = new NativeEventEmitter(NativeSparks);
+          const sparksEventEmitter = new NativeEventEmitter(NativeSparks);
           // Use event subscription to obtain download progress.
-          downloadProgressSubscription = codePushEventEmitter.addListener(
+          downloadProgressSubscription = sparksEventEmitter.addListener(
             "SparksDownloadProgress",
             downloadProgressCallback
           );
@@ -26,7 +26,7 @@ module.exports = (NativeSparks) => {
           const updatePackageCopy = Object.assign({}, this);
           Object.keys(updatePackageCopy).forEach((key) => (typeof updatePackageCopy[key] === 'function') && delete updatePackageCopy[key]);
 
-          const downloadedPackage = await Sparks.downloadUpdate(updatePackageCopy, !!downloadProgressCallback);
+          const downloadedPackage = await NativeSparks.downloadUpdate(updatePackageCopy, !!downloadProgressCallback);
 
           if (reportStatusDownload) {
             reportStatusDownload(this)
@@ -46,12 +46,12 @@ module.exports = (NativeSparks) => {
   };
 
   const local = {
-    async install(installMode = Sparks.sparksInstallModeOnNextRestart, minimumBackgroundDuration = 0, updateInstalledCallback) {
+    async install(installMode = NativeSparks.SparksInstallModeOnNextRestart, minimumBackgroundDuration = 0, updateInstalledCallback) {
       const localPackage = this;
       const localPackageCopy = Object.assign({}, localPackage);
       await NativeSparks.installUpdate(localPackageCopy, installMode, minimumBackgroundDuration);
       updateInstalledCallback && updateInstalledCallback();
-      if (installMode == NativeCodePush.codePushInstallModeImmediate) {
+      if (installMode == NativeSparks.SparksInstallModeImmediate) {
         RestartManager.restartApp(false);
       } else {
         RestartManager.clearPendingRestart();

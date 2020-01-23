@@ -107,7 +107,7 @@ static NSString *const LatestRollbackCountKey = @"count";
     return [resourcePath stringByAppendingPathComponent:[SparksUpdateUtils assetsFolderName]];
 }
 
-+ (NSURL *)bundleURL
++ (NSURL *)initSdk
 {
     return [self bundleURLForResource:bundleResourceName
                         withExtension:bundleResourceExtension
@@ -517,7 +517,7 @@ static NSString *const LatestRollbackCountKey = @"count";
         // file (since Chrome wouldn't support it). Otherwise, update
         // the current bundle URL to point at the latest update
         if ([Sparks isUsingTestConfiguration] || ![super.bridge.bundleURL.scheme hasPrefix:@"http"]) {
-            [super.bridge setValue:[Sparks bundleURL] forKey:@"bundleURL"];
+            [super.bridge setValue:[Sparks initSdk] forKey:@"bundleURL"];
         }
 
         [super.bridge reload];
@@ -783,32 +783,17 @@ RCT_EXPORT_METHOD(getUpdateMetadata:(SparksUpdateState)updateState
     if (error) {
         return reject([NSString stringWithFormat: @"%lu", (long)error.code], error.localizedDescription, error);
     } else if (package == nil) {
-        // The app hasn't downloaded any Sparks updates yet,
-        // so we simply return nil regardless if the user
-        // wanted to retrieve the pending or running update.
         return resolve(nil);
     }
 
-    // We have a Sparks update, so let's see if it's currently in a pending state.
     BOOL currentUpdateIsPending = [[self class] isPendingUpdate:[package objectForKey:PackageHashKey]];
 
     if (updateState == SparksUpdateStatePending && !currentUpdateIsPending) {
-        // The caller wanted a pending update
-        // but there isn't currently one.
         resolve(nil);
     } else if (updateState == SparksUpdateStateRunning && currentUpdateIsPending) {
-        // The caller wants the running update, but the current
-        // one is pending, so we need to grab the previous.
         resolve([SparksPackage getPreviousPackage:&error]);
     } else {
-        // The current package satisfies the request:
-        // 1) Caller wanted a pending, and there is a pending update
-        // 2) Caller wanted the running update, and there isn't a pending
-        // 3) Caller wants the latest update, regardless if it's pending or not
         if (isRunningBinaryVersion) {
-            // This only matters in Debug builds. Since we do not clear "outdated" updates,
-            // we need to indicate to the JS side that somehow we have a current update on
-            // disk that is not actually running.
             [package setObject:@(YES) forKey:@"_isDebugOnly"];
         }
 
