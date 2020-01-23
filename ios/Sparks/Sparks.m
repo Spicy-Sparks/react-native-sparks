@@ -14,17 +14,17 @@
 #import "RCTUtils.h"
 #endif
 
-#import "CodePush.h"
+#import "Sparks.h"
 
-@interface CodePush () <RCTBridgeModule, RCTFrameUpdateObserver>
+@interface Sparks () <RCTBridgeModule, RCTFrameUpdateObserver>
 @end
 
-@implementation CodePush {
+@implementation Sparks {
     BOOL _hasResumeListener;
     BOOL _isFirstRunAfterUpdate;
     int _minimumBackgroundDuration;
     NSDate *_lastResignedDate;
-    CodePushInstallMode _installMode;
+    SparksInstallMode _installMode;
     NSTimer *_appSuspendTimer;
 
     // Used to coordinate the dispatching of download progress events to JS.
@@ -38,15 +38,15 @@ RCT_EXPORT_MODULE()
 #pragma mark - Private constants
 
 // These constants represent emitted events
-static NSString *const DownloadProgressEvent = @"CodePushDownloadProgress";
+static NSString *const DownloadProgressEvent = @"SparksDownloadProgress";
 
 // These constants represent valid deployment statuses
 static NSString *const DeploymentFailed = @"DeploymentFailed";
 static NSString *const DeploymentSucceeded = @"DeploymentSucceeded";
 
 // These keys represent the names we use to store data in NSUserDefaults
-static NSString *const FailedUpdatesKey = @"CODE_PUSH_FAILED_UPDATES";
-static NSString *const PendingUpdateKey = @"CODE_PUSH_PENDING_UPDATE";
+static NSString *const FailedUpdatesKey = @"SPARKS_FAILED_UPDATES";
+static NSString *const PendingUpdateKey = @"SPARKS_PENDING_UPDATE";
 
 // These keys are already "namespaced" by the PendingUpdateKey, so
 // their values don't need to be obfuscated to prevent collision with app data
@@ -82,7 +82,7 @@ static NSString *const LatestRollbackCountKey = @"count";
 + (void)initialize
 {
     [super initialize];
-    if (self == [CodePush class]) {
+    if (self == [Sparks class]) {
         // Use the mainBundle by default.
         bundleResourceBundle = [NSBundle mainBundle];
     }
@@ -104,7 +104,7 @@ static NSString *const LatestRollbackCountKey = @"count";
         resourcePath = [resourcePath stringByAppendingPathComponent:bundleResourceSubdirectory];
     }
 
-    return [resourcePath stringByAppendingPathComponent:[CodePushUpdateUtils assetsFolderName]];
+    return [resourcePath stringByAppendingPathComponent:[SparksUpdateUtils assetsFolderName]];
 }
 
 + (NSURL *)bundleURL
@@ -157,7 +157,7 @@ static NSString *const LatestRollbackCountKey = @"count";
     NSString *logMessageFormat = @"Loading JS bundle from %@";
 
     NSError *error;
-    NSString *packageFile = [CodePushPackage getCurrentPackageBundlePath:&error];
+    NSString *packageFile = [SparksPackage getCurrentPackageBundlePath:&error];
     NSURL *binaryBundleURL = [self binaryBundleURL];
 
     if (error || !packageFile) {
@@ -166,8 +166,8 @@ static NSString *const LatestRollbackCountKey = @"count";
         return binaryBundleURL;
     }
 
-    NSString *binaryAppVersion = [[CodePushConfig current] appVersion];
-    NSDictionary *currentPackageMetadata = [CodePushPackage getCurrentPackage:&error];
+    NSString *binaryAppVersion = [[SparksConfig current] appVersion];
+    NSDictionary *currentPackageMetadata = [SparksPackage getCurrentPackage:&error];
     if (error || !currentPackageMetadata) {
         CPLog(logMessageFormat, binaryBundleURL);
         isRunningBinaryVersion = YES;
@@ -177,7 +177,7 @@ static NSString *const LatestRollbackCountKey = @"count";
     NSString *packageDate = [currentPackageMetadata objectForKey:BinaryBundleDateKey];
     NSString *packageAppVersion = [currentPackageMetadata objectForKey:AppVersionKey];
 
-    if ([[CodePushUpdateUtils modifiedDateStringOfFileAtURL:binaryBundleURL] isEqualToString:packageDate] && ([CodePush isUsingTestConfiguration] ||[binaryAppVersion isEqualToString:packageAppVersion])) {
+    if ([[SparksUpdateUtils modifiedDateStringOfFileAtURL:binaryBundleURL] isEqualToString:packageDate] && ([Sparks isUsingTestConfiguration] ||[binaryAppVersion isEqualToString:packageAppVersion])) {
         // Return package file because it is newer than the app store binary's JS bundle
         NSURL *packageUrl = [[NSURL alloc] initFileURLWithPath:packageFile];
         CPLog(logMessageFormat, packageUrl);
@@ -190,7 +190,7 @@ static NSString *const LatestRollbackCountKey = @"count";
 #endif
 
         if (isRelease || ![binaryAppVersion isEqualToString:packageAppVersion]) {
-            [CodePush clearUpdates];
+            [Sparks clearUpdates];
         }
 
         CPLog(logMessageFormat, binaryBundleURL);
@@ -207,12 +207,12 @@ static NSString *const LatestRollbackCountKey = @"count";
 
 + (void)overrideAppVersion:(NSString *)appVersion
 {
-    [CodePushConfig current].appVersion = appVersion;
+    [SparksConfig current].appVersion = appVersion;
 }
 
 + (void)setDeploymentKey:(NSString *)deploymentKey
 {
-    [CodePushConfig current].deploymentKey = deploymentKey;
+    [SparksConfig current].deploymentKey = deploymentKey;
 }
 
 /*
@@ -220,7 +220,7 @@ static NSString *const LatestRollbackCountKey = @"count";
  */
 + (void)clearUpdates
 {
-    [CodePushPackage clearUpdates];
+    [SparksPackage clearUpdates];
     [self removePendingUpdate];
     [self removeFailedUpdates];
 }
@@ -228,7 +228,7 @@ static NSString *const LatestRollbackCountKey = @"count";
 #pragma mark - Test-only methods
 
 /*
- * This returns a boolean value indicating whether CodePush has
+ * This returns a boolean value indicating whether Sparks has
  * been set to run under a test configuration.
  */
 + (BOOL)isUsingTestConfiguration
@@ -274,12 +274,12 @@ static NSString *const LatestRollbackCountKey = @"count";
     dispatch_async(dispatch_get_main_queue(), ^{
         if ([super.bridge.bundleURL.scheme hasPrefix:@"http"]) {
             NSError *error;
-            NSString *binaryAppVersion = [[CodePushConfig current] appVersion];
-            NSDictionary *currentPackageMetadata = [CodePushPackage getCurrentPackage:&error];
+            NSString *binaryAppVersion = [[SparksConfig current] appVersion];
+            NSDictionary *currentPackageMetadata = [SparksPackage getCurrentPackage:&error];
             if (currentPackageMetadata) {
                 NSString *packageAppVersion = [currentPackageMetadata objectForKey:AppVersionKey];
                 if (![binaryAppVersion isEqualToString:packageAppVersion]) {
-                    [CodePush clearUpdates];
+                    [Sparks clearUpdates];
                 }
             }
         }
@@ -294,17 +294,17 @@ static NSString *const LatestRollbackCountKey = @"count";
  */
 - (NSDictionary *)constantsToExport
 {
-    // Export the values of the CodePushInstallMode and CodePushUpdateState
+    // Export the values of the SparksInstallMode and SparksUpdateState
     // enums so that the script-side can easily stay in sync
     return @{
-             @"codePushInstallModeOnNextRestart":@(CodePushInstallModeOnNextRestart),
-             @"codePushInstallModeImmediate": @(CodePushInstallModeImmediate),
-             @"codePushInstallModeOnNextResume": @(CodePushInstallModeOnNextResume),
-             @"codePushInstallModeOnNextSuspend": @(CodePushInstallModeOnNextSuspend),
+             @"SparksInstallModeOnNextRestart":@(SparksInstallModeOnNextRestart),
+             @"SparksInstallModeImmediate": @(SparksInstallModeImmediate),
+             @"SparksInstallModeOnNextResume": @(SparksInstallModeOnNextResume),
+             @"SparksInstallModeOnNextSuspend": @(SparksInstallModeOnNextSuspend),
 
-             @"codePushUpdateStateRunning": @(CodePushUpdateStateRunning),
-             @"codePushUpdateStatePending": @(CodePushUpdateStatePending),
-             @"codePushUpdateStateLatest": @(CodePushUpdateStateLatest)
+             @"SparksUpdateStateRunning": @(SparksUpdateStateRunning),
+             @"SparksUpdateStatePending": @(SparksUpdateStatePending),
+             @"SparksUpdateStateLatest": @(SparksUpdateStateLatest)
             };
 };
 
@@ -343,11 +343,11 @@ static NSString *const LatestRollbackCountKey = @"count";
     #ifdef DEBUG
         #if TARGET_IPHONE_SIMULATOR
             errorMessage = @"React Native doesn't generate your app's JS bundle by default when deploying to the simulator. "
-            "If you'd like to test CodePush using the simulator, you can do one of the following depending on your "
+            "If you'd like to test Sparks using the simulator, you can do one of the following depending on your "
             "React Native version and/or preferred workflow:\n\n"
 
-            "1. Update your AppDelegate.m file to load the JS bundle from the packager instead of from CodePush. "
-            "You can still test your CodePush update experience using this workflow (Debug builds only).\n\n"
+            "1. Update your AppDelegate.m file to load the JS bundle from the packager instead of from Sparks. "
+            "You can still test your Sparks update experience using this workflow (Debug builds only).\n\n"
 
             "2. Force the JS bundle to be generated in simulator builds by adding 'export FORCE_BUNDLING=true' to the script under "
             "\"Build Phases\" > \"Bundle React Native code and images\" (React Native >=0.48 only).\n\n"
@@ -363,7 +363,7 @@ static NSString *const LatestRollbackCountKey = @"count";
         errorMessage = @"Something went wrong. Please verify if generated JS bundle is correct. ";
     #endif
 
-        RCTFatal([CodePushErrorUtils errorWithMessage:errorMessage]);
+        RCTFatal([SparksErrorUtils errorWithMessage:errorMessage]);
     }
 }
 
@@ -517,7 +517,7 @@ static NSString *const LatestRollbackCountKey = @"count";
 
 /*
  * This method updates the React Native bridge's bundle URL
- * to point at the latest CodePush update, and then restarts
+ * to point at the latest Sparks update, and then restarts
  * the bridge. This isn't meant to be called directly.
  */
 - (void)loadBundle
@@ -529,8 +529,8 @@ static NSString *const LatestRollbackCountKey = @"count";
         // is debugging and therefore, shouldn't be redirected to a local
         // file (since Chrome wouldn't support it). Otherwise, update
         // the current bundle URL to point at the latest update
-        if ([CodePush isUsingTestConfiguration] || ![super.bridge.bundleURL.scheme hasPrefix:@"http"]) {
-            [super.bridge setValue:[CodePush bundleURL] forKey:@"bundleURL"];
+        if ([Sparks isUsingTestConfiguration] || ![super.bridge.bundleURL.scheme hasPrefix:@"http"]) {
+            [super.bridge setValue:[Sparks bundleURL] forKey:@"bundleURL"];
         }
 
         [super.bridge reload];
@@ -547,7 +547,7 @@ static NSString *const LatestRollbackCountKey = @"count";
 - (void)rollbackPackage
 {
     NSError *error;
-    NSDictionary *failedPackage = [CodePushPackage getCurrentPackage:&error];
+    NSDictionary *failedPackage = [SparksPackage getCurrentPackage:&error];
     if (!failedPackage) {
         if (error) {
             CPLog(@"Error getting current update metadata during rollback: %@", error);
@@ -560,8 +560,8 @@ static NSString *const LatestRollbackCountKey = @"count";
     }
 
     // Rollback to the previous version and de-register the new update
-    [CodePushPackage rollbackPackage];
-    [CodePush removePendingUpdate];
+    [SparksPackage rollbackPackage];
+    [Sparks removePendingUpdate];
     [self loadBundle];
 }
 
@@ -575,7 +575,7 @@ static NSString *const LatestRollbackCountKey = @"count";
     if ([[self class] isFailedHash:[failedPackage objectForKey:PackageHashKey]]) {
         return;
     }
-    
+
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
     NSMutableArray *failedUpdates = [preferences objectForKey:FailedUpdatesKey];
     if (failedUpdates == nil) {
@@ -664,7 +664,7 @@ static NSString *const LatestRollbackCountKey = @"count";
     // resumed, we can detect how long it was in the background.
     _lastResignedDate = [NSDate date];
 
-    if (_installMode == CodePushInstallModeOnNextSuspend && [[self class] isPendingUpdate:nil]) {
+    if (_installMode == SparksInstallModeOnNextSuspend && [[self class] isPendingUpdate:nil]) {
         _appSuspendTimer = [NSTimer scheduledTimerWithTimeInterval:_minimumBackgroundDuration
                                                          target:self
                                                        selector:@selector(loadBundleOnTick:)
@@ -688,9 +688,9 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
                         rejecter:(RCTPromiseRejectBlock)reject)
 {
     NSDictionary *mutableUpdatePackage = [updatePackage mutableCopy];
-    NSURL *binaryBundleURL = [CodePush binaryBundleURL];
+    NSURL *binaryBundleURL = [Sparks binaryBundleURL];
     if (binaryBundleURL != nil) {
-        [mutableUpdatePackage setValue:[CodePushUpdateUtils modifiedDateStringOfFileAtURL:binaryBundleURL]
+        [mutableUpdatePackage setValue:[SparksUpdateUtils modifiedDateStringOfFileAtURL:binaryBundleURL]
                                 forKey:BinaryBundleDateKey];
     }
 
@@ -701,9 +701,9 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
         self.paused = NO;
     }
 
-    NSString * publicKey = [[CodePushConfig current] publicKey];
+    NSString * publicKey = [[SparksConfig current] publicKey];
 
-    [CodePushPackage
+    [SparksPackage
         downloadPackage:mutableUpdatePackage
         expectedBundleFileName:[bundleResourceName stringByAppendingPathExtension:bundleResourceExtension]
         publicKey:publicKey
@@ -726,7 +726,7 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
         // The download completed
         doneCallback:^{
             NSError *err;
-            NSDictionary *newPackage = [CodePushPackage getPackage:mutableUpdatePackage[PackageHashKey] error:&err];
+            NSDictionary *newPackage = [SparksPackage getPackage:mutableUpdatePackage[PackageHashKey] error:&err];
 
             if (err) {
                 return reject([NSString stringWithFormat: @"%lu", (long)err.code], err.localizedDescription, err);
@@ -735,7 +735,7 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
         }
         // The download failed
         failCallback:^(NSError *err) {
-            if ([CodePushErrorUtils isCodePushError:err]) {
+            if ([SparksErrorUtils isSparksError:err]) {
                 [self saveFailedUpdate:mutableUpdatePackage];
             }
 
@@ -747,19 +747,19 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
 }
 
 /*
- * This is the native side of the CodePush.getConfiguration method. It isn't
- * currently exposed via the "react-native-code-push" module, and is used
- * internally only by the CodePush.checkForUpdate method in order to get the
+ * This is the native side of the Sparks.getConfiguration method. It isn't
+ * currently exposed via the "react-native-sparks" module, and is used
+ * internally only by the Sparks.checkForUpdate method in order to get the
  * app version, as well as the deployment key that was configured in the Info.plist file.
  */
 RCT_EXPORT_METHOD(getConfiguration:(RCTPromiseResolveBlock)resolve
                           rejecter:(RCTPromiseRejectBlock)reject)
 {
-    NSDictionary *configuration = [[CodePushConfig current] configuration];
+    NSDictionary *configuration = [[SparksConfig current] configuration];
     NSError *error;
     if (isRunningBinaryVersion) {
         // isRunningBinaryVersion will not get set to "YES" if running against the packager.
-        NSString *binaryHash = [CodePushUpdateUtils getHashForBinaryContents:[CodePush binaryBundleURL] error:&error];
+        NSString *binaryHash = [SparksUpdateUtils getHashForBinaryContents:[Sparks binaryBundleURL] error:&error];
         if (error) {
             CPLog(@"Error obtaining hash for binary contents: %@", error);
             resolve(configuration);
@@ -784,35 +784,35 @@ RCT_EXPORT_METHOD(getConfiguration:(RCTPromiseResolveBlock)resolve
 }
 
 /*
- * This method is the native side of the CodePush.getUpdateMetadata method.
+ * This method is the native side of the Sparks.getUpdateMetadata method.
  */
-RCT_EXPORT_METHOD(getUpdateMetadata:(CodePushUpdateState)updateState
+RCT_EXPORT_METHOD(getUpdateMetadata:(SparksUpdateState)updateState
                            resolver:(RCTPromiseResolveBlock)resolve
                            rejecter:(RCTPromiseRejectBlock)reject)
 {
     NSError *error;
-    NSMutableDictionary *package = [[CodePushPackage getCurrentPackage:&error] mutableCopy];
+    NSMutableDictionary *package = [[SparksPackage getCurrentPackage:&error] mutableCopy];
 
     if (error) {
         return reject([NSString stringWithFormat: @"%lu", (long)error.code], error.localizedDescription, error);
     } else if (package == nil) {
-        // The app hasn't downloaded any CodePush updates yet,
+        // The app hasn't downloaded any Sparks updates yet,
         // so we simply return nil regardless if the user
         // wanted to retrieve the pending or running update.
         return resolve(nil);
     }
 
-    // We have a CodePush update, so let's see if it's currently in a pending state.
+    // We have a Sparks update, so let's see if it's currently in a pending state.
     BOOL currentUpdateIsPending = [[self class] isPendingUpdate:[package objectForKey:PackageHashKey]];
 
-    if (updateState == CodePushUpdateStatePending && !currentUpdateIsPending) {
+    if (updateState == SparksUpdateStatePending && !currentUpdateIsPending) {
         // The caller wanted a pending update
         // but there isn't currently one.
         resolve(nil);
-    } else if (updateState == CodePushUpdateStateRunning && currentUpdateIsPending) {
+    } else if (updateState == SparksUpdateStateRunning && currentUpdateIsPending) {
         // The caller wants the running update, but the current
         // one is pending, so we need to grab the previous.
-        resolve([CodePushPackage getPreviousPackage:&error]);
+        resolve([SparksPackage getPreviousPackage:&error]);
     } else {
         // The current package satisfies the request:
         // 1) Caller wanted a pending, and there is a pending update
@@ -835,13 +835,13 @@ RCT_EXPORT_METHOD(getUpdateMetadata:(CodePushUpdateState)updateState
  * This method is the native side of the LocalPackage.install method.
  */
 RCT_EXPORT_METHOD(installUpdate:(NSDictionary*)updatePackage
-                    installMode:(CodePushInstallMode)installMode
+                    installMode:(SparksInstallMode)installMode
       minimumBackgroundDuration:(int)minimumBackgroundDuration
                        resolver:(RCTPromiseResolveBlock)resolve
                        rejecter:(RCTPromiseRejectBlock)reject)
 {
     NSError *error;
-    [CodePushPackage installPackage:updatePackage
+    [SparksPackage installPackage:updatePackage
                 removePendingUpdate:[[self class] isPendingUpdate:nil]
                               error:&error];
 
@@ -852,7 +852,7 @@ RCT_EXPORT_METHOD(installUpdate:(NSDictionary*)updatePackage
                       isLoading:NO];
 
         _installMode = installMode;
-        if (_installMode == CodePushInstallModeOnNextResume || _installMode == CodePushInstallModeOnNextSuspend) {
+        if (_installMode == SparksInstallModeOnNextResume || _installMode == SparksInstallModeOnNextSuspend) {
             _minimumBackgroundDuration = minimumBackgroundDuration;
 
             if (!_hasResumeListener) {
@@ -879,7 +879,7 @@ RCT_EXPORT_METHOD(installUpdate:(NSDictionary*)updatePackage
 }
 
 /*
- * This method isn't publicly exposed via the "react-native-code-push"
+ * This method isn't publicly exposed via the "react-native-sparks"
  * module, and is only used internally to populate the RemotePackage.failedInstall property.
  */
 RCT_EXPORT_METHOD(isFailedUpdate:(NSString *)packageHash
@@ -906,7 +906,7 @@ RCT_EXPORT_METHOD(getLatestRollbackInfo:(RCTPromiseResolveBlock)resolve
 }
 
 /*
- * This method isn't publicly exposed via the "react-native-code-push"
+ * This method isn't publicly exposed via the "react-native-sparks"
  * module, and is only used internally to populate the LocalPackage.isFirstRun property.
  */
 RCT_EXPORT_METHOD(isFirstRun:(NSString *)packageHash
@@ -917,23 +917,23 @@ RCT_EXPORT_METHOD(isFirstRun:(NSString *)packageHash
     BOOL isFirstRun = _isFirstRunAfterUpdate
                         && nil != packageHash
                         && [packageHash length] > 0
-                        && [packageHash isEqualToString:[CodePushPackage getCurrentPackageHash:&error]];
+                        && [packageHash isEqualToString:[SparksPackage getCurrentPackageHash:&error]];
 
     resolve(@(isFirstRun));
 }
 
 /*
- * This method is the native side of the CodePush.notifyApplicationReady() method.
+ * This method is the native side of the Sparks.notifyApplicationReady() method.
  */
 RCT_EXPORT_METHOD(notifyApplicationReady:(RCTPromiseResolveBlock)resolve
                                 rejecter:(RCTPromiseRejectBlock)reject)
 {
-    [CodePush removePendingUpdate];
+    [Sparks removePendingUpdate];
     resolve(nil);
 }
 
 /*
- * This method is the native side of the CodePush.restartApp() method.
+ * This method is the native side of the Sparks.restartApp() method.
  */
 RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
                      resolve:(RCTPromiseResolveBlock)resolve
@@ -951,28 +951,28 @@ RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
 }
 
 /*
- * This method clears CodePush's downloaded updates.
+ * This method clears Sparks's downloaded updates.
  * It is needed to switch to a different deployment if the current deployment is more recent.
- * Note: we don’t recommend to use this method in scenarios other than that (CodePush will call this method
+ * Note: we don’t recommend to use this method in scenarios other than that (Sparks will call this method
  * automatically when needed in other cases) as it could lead to unpredictable behavior.
  */
 RCT_EXPORT_METHOD(clearUpdates) {
     CPLog(@"Clearing updates.");
-    [CodePush clearUpdates];
+    [Sparks clearUpdates];
 }
 
 #pragma mark - JavaScript-exported module methods (Private)
 
 /*
- * This method is the native side of the CodePush.downloadAndReplaceCurrentBundle()
+ * This method is the native side of the Sparks.downloadAndReplaceCurrentBundle()
  * method, which replaces the current bundle with the one downloaded from
  * removeBundleUrl. It is only to be used during tests and no-ops if the test
  * configuration flag is not set.
  */
 RCT_EXPORT_METHOD(downloadAndReplaceCurrentBundle:(NSString *)remoteBundleUrl)
 {
-    if ([CodePush isUsingTestConfiguration]) {
-        [CodePushPackage downloadAndReplaceCurrentBundle:remoteBundleUrl];
+    if ([Sparks isUsingTestConfiguration]) {
+        [SparksPackage downloadAndReplaceCurrentBundle:remoteBundleUrl];
     }
 }
 
@@ -990,23 +990,23 @@ RCT_EXPORT_METHOD(getNewStatusReport:(RCTPromiseResolveBlock)resolve
         if (failedUpdates) {
             NSDictionary *lastFailedPackage = [failedUpdates lastObject];
             if (lastFailedPackage) {
-                resolve([CodePushTelemetryManager getRollbackReport:lastFailedPackage]);
+                resolve([SparksTelemetryManager getRollbackReport:lastFailedPackage]);
                 return;
             }
         }
     } else if (_isFirstRunAfterUpdate) {
         NSError *error;
-        NSDictionary *currentPackage = [CodePushPackage getCurrentPackage:&error];
+        NSDictionary *currentPackage = [SparksPackage getCurrentPackage:&error];
         if (!error && currentPackage) {
-            resolve([CodePushTelemetryManager getUpdateReport:currentPackage]);
+            resolve([SparksTelemetryManager getUpdateReport:currentPackage]);
             return;
         }
     } else if (isRunningBinaryVersion) {
-        NSString *appVersion = [[CodePushConfig current] appVersion];
-        resolve([CodePushTelemetryManager getBinaryUpdateReport:appVersion]);
+        NSString *appVersion = [[SparksConfig current] appVersion];
+        resolve([SparksTelemetryManager getBinaryUpdateReport:appVersion]);
         return;
     } else {
-        NSDictionary *retryStatusReport = [CodePushTelemetryManager getRetryStatusReport];
+        NSDictionary *retryStatusReport = [SparksTelemetryManager getRetryStatusReport];
         if (retryStatusReport) {
             resolve(retryStatusReport);
             return;
@@ -1018,12 +1018,12 @@ RCT_EXPORT_METHOD(getNewStatusReport:(RCTPromiseResolveBlock)resolve
 
 RCT_EXPORT_METHOD(recordStatusReported:(NSDictionary *)statusReport)
 {
-    [CodePushTelemetryManager recordStatusReported:statusReport];
+    [SparksTelemetryManager recordStatusReported:statusReport];
 }
 
 RCT_EXPORT_METHOD(saveStatusReportForRetry:(NSDictionary *)statusReport)
 {
-    [CodePushTelemetryManager saveStatusReportForRetry:statusReport];
+    [SparksTelemetryManager saveStatusReportForRetry:statusReport];
 }
 
 #pragma mark - RCTFrameUpdateObserver Methods

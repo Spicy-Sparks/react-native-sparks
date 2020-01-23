@@ -1,6 +1,6 @@
-#import "CodePush.h"
+#import "Sparks.h"
 
-@implementation CodePushDownloadHandler {
+@implementation SparksDownloadHandler {
     // Header chars used to determine if the file is a zip.
     char _header[4];
 }
@@ -54,7 +54,7 @@ failCallback:(void (^)(NSError *err))failCallback {
         if (statusCode >= 400) {
             [self.outputFileStream close];
             [connection cancel];
-            NSError *err = [CodePushErrorUtils errorWithMessage:[NSString stringWithFormat: @"Received %ld response from %@", (long)statusCode, self.downloadUrl]];
+            NSError *err = [SparksErrorUtils errorWithMessage:[NSString stringWithFormat: @"Received %ld response from %@", (long)statusCode, self.downloadUrl]];
             self.failCallback(err);
             return;
         }
@@ -112,7 +112,7 @@ failCallback:(void (^)(NSError *err))failCallback {
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
     [self.outputFileStream close];
     if (self.receivedContentLength < 1) {
-        NSError *err = [CodePushErrorUtils errorWithMessage:[NSString stringWithFormat:@"Received empty response from %@", self.downloadUrl]];
+        NSError *err = [SparksErrorUtils errorWithMessage:[NSString stringWithFormat:@"Received empty response from %@", self.downloadUrl]];
         self.failCallback(err);
         return;
     }

@@ -1,28 +1,28 @@
-#import "CodePush.h"
+#import "Sparks.h"
 #include <CommonCrypto/CommonDigest.h>
 #import "JWT.h"
 
-@implementation CodePushUpdateUtils
+@implementation SparksUpdateUtils
 
 NSString * const AssetsFolderName = @"assets";
-NSString * const BinaryHashKey = @"CodePushBinaryHash";
-NSString * const ManifestFolderPrefix = @"CodePush";
-NSString * const BundleJWTFile = @".codepushrelease";
+NSString * const BinaryHashKey = @"SparksBinaryHash";
+NSString * const ManifestFolderPrefix = @"Sparks";
+NSString * const BundleJWTFile = @".Sparksrelease";
 
 /*
  Ignore list for hashing
  */
 NSString * const IgnoreMacOSX= @"__MACOSX/";
 NSString * const IgnoreDSStore = @".DS_Store";
-NSString * const IgnoreCodePushMetadata = @".codepushrelease";
+NSString * const IgnoreSparksMetadata = @".Sparksrelease";
 
 + (BOOL)isHashIgnoredFor:(NSString *) relativePath
 {
     return [relativePath hasPrefix:IgnoreMacOSX]
     || [relativePath isEqualToString:IgnoreDSStore]
     || [relativePath hasSuffix:[NSString stringWithFormat:@"/%@", IgnoreDSStore]]
-    || [relativePath isEqualToString:IgnoreCodePushMetadata]
-    || [relativePath hasSuffix:[NSString stringWithFormat:@"/%@", IgnoreCodePushMetadata]];
+    || [relativePath isEqualToString:IgnoreSparksMetadata]
+    || [relativePath hasSuffix:[NSString stringWithFormat:@"/%@", IgnoreSparksMetadata]];
 }
 
 + (BOOL)addContentsOfFolderToManifest:(NSString *)folderPath
@@ -90,7 +90,7 @@ NSString * const IgnoreCodePushMetadata = @".codepushrelease";
     
     NSString *manifestString = [[NSString alloc] initWithData:manifestData
                                                      encoding:NSUTF8StringEncoding];
-    // The JSON serialization turns path separators into "\/", e.g. "CodePush\/assets\/image.png"
+    // The JSON serialization turns path separators into "\/", e.g. "Sparks\/assets\/image.png"
     manifestString = [manifestString stringByReplacingOccurrencesOfString:@"\\/"
                                                                withString:@"/"];
     return [self computeHashForData:[NSData dataWithBytes:manifestString.UTF8String length:manifestString.length]];
@@ -218,7 +218,7 @@ NSString * const IgnoreCodePushMetadata = @".codepushrelease";
     
     // If the app is using assets, then add
     // them to the generated content manifest.
-    NSString *assetsPath = [CodePush bundleAssetsPath];
+    NSString *assetsPath = [Sparks bundleAssetsPath];
     if ([[NSFileManager defaultManager] fileExistsAtPath:assetsPath]) {
         
         BOOL result = [self addContentsOfFolderToManifest:assetsPath
@@ -313,7 +313,7 @@ NSString * const IgnoreCodePushMetadata = @".codepushrelease";
     if ([[NSFileManager defaultManager] fileExistsAtPath:signatureFilePath]) {
         return [NSString stringWithContentsOfFile:signatureFilePath encoding:NSUTF8StringEncoding error:error];
     } else {
-        *error = [CodePushErrorUtils errorWithMessage:[NSString stringWithFormat: @"Cannot find signature at %@", signatureFilePath]];
+        *error = [SparksErrorUtils errorWithMessage:[NSString stringWithFormat: @"Cannot find signature at %@", signatureFilePath]];
         return nil;
     }
 }

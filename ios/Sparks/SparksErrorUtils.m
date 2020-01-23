@@ -1,20 +1,20 @@
-#import "CodePush.h"
+#import "Sparks.h"
 
-@implementation CodePushErrorUtils
+@implementation SparksErrorUtils
 
-static NSString *const CodePushErrorDomain = @"CodePushError";
-static const int CodePushErrorCode = -1;
+static NSString *const SparksErrorDomain = @"SparksError";
+static const int SparksErrorCode = -1;
 
 + (NSError *)errorWithMessage:(NSString *)errorMessage
 {
-    return [NSError errorWithDomain:CodePushErrorDomain
-                               code:CodePushErrorCode
+    return [NSError errorWithDomain:SparksErrorDomain
+                               code:SparksErrorCode
                            userInfo:@{ NSLocalizedDescriptionKey: NSLocalizedString(errorMessage, nil) }];
 }
 
-+ (BOOL)isCodePushError:(NSError *)err
++ (BOOL)isSparksError:(NSError *)err
 {
-    return err != nil && [CodePushErrorDomain isEqualToString:err.domain];
+    return err != nil && [SparksErrorDomain isEqualToString:err.domain];
 }
 
 @end

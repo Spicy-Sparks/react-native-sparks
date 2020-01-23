@@ -1,11 +1,11 @@
-#import "CodePush.h"
+#import "Sparks.h"
 #import <UIKit/UIKit.h>
 
-@implementation CodePushConfig {
+@implementation SparksConfig {
     NSMutableDictionary *_configDictionary;
 }
 
-static CodePushConfig *_currentConfig;
+static SparksConfig *_currentConfig;
 
 static NSString * const AppVersionConfigKey = @"appVersion";
 static NSString * const BuildVersionConfigKey = @"buildVersion";
@@ -21,8 +21,8 @@ static NSString * const PublicKeyKey = @"publicKey";
 
 + (void)initialize
 {
-    if (self == [CodePushConfig class]) {
-        _currentConfig = [[CodePushConfig alloc] init];
+    if (self == [SparksConfig class]) {
+        _currentConfig = [[SparksConfig alloc] init];
     }
 }
 
@@ -33,9 +33,9 @@ static NSString * const PublicKeyKey = @"publicKey";
 
     NSString *appVersion = [infoDictionary objectForKey:@"CFBundleShortVersionString"];
     NSString *buildVersion = [infoDictionary objectForKey:(NSString *)kCFBundleVersionKey];
-    NSString *deploymentKey = [infoDictionary objectForKey:@"CodePushDeploymentKey"];
-    NSString *serverURL = [infoDictionary objectForKey:@"CodePushServerURL"];
-    NSString *publicKey = [infoDictionary objectForKey:@"CodePushPublicKey"];
+    NSString *deploymentKey = [infoDictionary objectForKey:@"SparksDeploymentKey"];
+    NSString *serverURL = [infoDictionary objectForKey:@"SparksServerURL"];
+    NSString *publicKey = [infoDictionary objectForKey:@"SparksPublicKey"];
     
     NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
     NSString *clientUniqueId = [userDefaults stringForKey:ClientUniqueIDConfigKey];
@@ -46,7 +46,7 @@ static NSString * const PublicKeyKey = @"publicKey";
     }
 
     if (!serverURL) {
-        serverURL = @"https://codepush.appcenter.ms/";
+        serverURL = @"https://Sparks.appcenter.ms/";
     }
 
     _configDictionary = [NSMutableDictionary dictionary];

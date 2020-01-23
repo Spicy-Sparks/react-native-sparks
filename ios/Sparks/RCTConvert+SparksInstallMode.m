@@ -1,4 +1,4 @@
-#import "CodePush.h"
+#import "Sparks.h"
 
 #if __has_include(<React/RCTConvert.h>)
 #import <React/RCTConvert.h>
@@ -7,14 +7,14 @@
 #endif
 
 // Extending the RCTConvert class allows the React Native
-// bridge to handle args of type "CodePushInstallMode"
-@implementation RCTConvert (CodePushInstallMode)
+// bridge to handle args of type "SparksInstallMode"
+@implementation RCTConvert (SparksInstallMode)
 
-RCT_ENUM_CONVERTER(CodePushInstallMode, (@{ @"codePushInstallModeImmediate": @(CodePushInstallModeImmediate),
-                                            @"codePushInstallModeOnNextRestart": @(CodePushInstallModeOnNextRestart),
-                                            @"codePushInstallModeOnNextResume": @(CodePushInstallModeOnNextResume),
-                                            @"codePushInstallModeOnNextSuspend": @(CodePushInstallModeOnNextSuspend) }),
-                   CodePushInstallModeImmediate, // Default enum value
+RCT_ENUM_CONVERTER(SparksInstallMode, (@{ @"SparksInstallModeImmediate": @(SparksInstallModeImmediate),
+                                            @"SparksInstallModeOnNextRestart": @(SparksInstallModeOnNextRestart),
+                                            @"SparksInstallModeOnNextResume": @(SparksInstallModeOnNextResume),
+                                            @"SparksInstallModeOnNextSuspend": @(SparksInstallModeOnNextSuspend) }),
+                   SparksInstallModeImmediate, // Default enum value
                    integerValue)
 
 @end

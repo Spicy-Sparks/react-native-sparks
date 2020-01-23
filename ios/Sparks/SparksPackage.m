@@ -1,14 +1,14 @@
-#import "CodePush.h"
+#import "Sparks.h"
 #import "SSZipArchive.h"
 
-@implementation CodePushPackage
+@implementation SparksPackage
 
 #pragma mark - Private constants
 
-static NSString *const DiffManifestFileName = @"hotcodepush.json";
+static NSString *const DiffManifestFileName = @"hotSparks.json";
 static NSString *const DownloadFileName = @"download.zip";
 static NSString *const RelativeBundlePathKey = @"bundlePath";
-static NSString *const StatusFile = @"codepush.json";
+static NSString *const StatusFile = @"Sparks.json";
 static NSString *const UpdateBundleFileName = @"app.jsbundle";
 static NSString *const UpdateMetadataFileName = @"app.json";
 static NSString *const UnzippedFolderName = @"unzipped";
@@ -17,7 +17,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
 
 + (void)clearUpdates
 {
-    [[NSFileManager defaultManager] removeItemAtPath:[self getCodePushPath] error:nil];
+    [[NSFileManager defaultManager] removeItemAtPath:[self getSparksPath] error:nil];
 }
 
 + (void)downloadAndReplaceCurrentBundle:(NSString *)remoteBundleUrl
@@ -57,16 +57,16 @@ static NSString *const UnzippedFolderName = @"unzipped";
         // uncleared due to a crash or error during the download or install process.
         [[NSFileManager defaultManager] removeItemAtPath:newUpdateFolderPath
                                                    error:&error];
-    } else if (![[NSFileManager defaultManager] fileExistsAtPath:[self getCodePushPath]]) {
-        [[NSFileManager defaultManager] createDirectoryAtPath:[self getCodePushPath]
+    } else if (![[NSFileManager defaultManager] fileExistsAtPath:[self getSparksPath]]) {
+        [[NSFileManager defaultManager] createDirectoryAtPath:[self getSparksPath]
                                   withIntermediateDirectories:YES
                                                    attributes:nil
                                                         error:&error];
                                                         
-        // Ensure that none of the CodePush updates we store on disk are
+        // Ensure that none of the Sparks updates we store on disk are
         // ever included in the end users iTunes and/or iCloud backups
-        NSURL *codePushURL = [NSURL fileURLWithPath:[self getCodePushPath]];
-        [codePushURL setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
+        NSURL *SparksURL = [NSURL fileURLWithPath:[self getSparksPath]];
+        [SparksURL setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
     }
     
     if (error) {
@@ -76,13 +76,13 @@ static NSString *const UnzippedFolderName = @"unzipped";
     NSString *downloadFilePath = [self getDownloadFilePath];
     NSString *bundleFilePath = [newUpdateFolderPath stringByAppendingPathComponent:UpdateBundleFileName];
     
-    CodePushDownloadHandler *downloadHandler = [[CodePushDownloadHandler alloc]
+    SparksDownloadHandler *downloadHandler = [[SparksDownloadHandler alloc]
                                                 init:downloadFilePath
                                                 operationQueue:operationQueue
                                                 progressCallback:progressCallback
                                                 doneCallback:^(BOOL isZip) {
                                                     NSError *error = nil;
-                                                    NSString * unzippedFolderPath = [CodePushPackage getUnzippedFolderPath];
+                                                    NSString * unzippedFolderPath = [SparksPackage getUnzippedFolderPath];
                                                     NSMutableDictionary * mutableUpdatePackage = [updatePackage mutableCopy];
                                                     if (isZip) {
                                                         if ([[NSFileManager defaultManager] fileExistsAtPath:unzippedFolderPath]) {
@@ -119,8 +119,8 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                             
                                                             if (currentPackageFolderPath == nil) {
                                                                 // Currently running the binary version, copy files from the bundled resources
-                                                                NSString *newUpdateCodePushPath = [newUpdateFolderPath stringByAppendingPathComponent:[CodePushUpdateUtils manifestFolderPrefix]];
-                                                                [[NSFileManager defaultManager] createDirectoryAtPath:newUpdateCodePushPath
+                                                                NSString *newUpdateSparksPath = [newUpdateFolderPath stringByAppendingPathComponent:[SparksUpdateUtils manifestFolderPrefix]];
+                                                                [[NSFileManager defaultManager] createDirectoryAtPath:newUpdateSparksPath
                                                                                           withIntermediateDirectories:YES
                                                                                                            attributes:nil
                                                                                                                 error:&error];
@@ -129,16 +129,16 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                                     return;
                                                                 }
                                                                 
-                                                                [[NSFileManager defaultManager] copyItemAtPath:[CodePush bundleAssetsPath]
-                                                                                                        toPath:[newUpdateCodePushPath stringByAppendingPathComponent:[CodePushUpdateUtils assetsFolderName]]
+                                                                [[NSFileManager defaultManager] copyItemAtPath:[Sparks bundleAssetsPath]
+                                                                                                        toPath:[newUpdateSparksPath stringByAppendingPathComponent:[SparksUpdateUtils assetsFolderName]]
                                                                                                          error:&error];
                                                                 if (error) {
                                                                     failCallback(error);
                                                                     return;
                                                                 }
                                                                 
-                                                                [[NSFileManager defaultManager] copyItemAtPath:[[CodePush binaryBundleURL] path]
-                                                                                                        toPath:[newUpdateCodePushPath stringByAppendingPathComponent:[[CodePush binaryBundleURL] lastPathComponent]]
+                                                                [[NSFileManager defaultManager] copyItemAtPath:[[Sparks binaryBundleURL] path]
+                                                                                                        toPath:[newUpdateSparksPath stringByAppendingPathComponent:[[Sparks binaryBundleURL] lastPathComponent]]
                                                                                                          error:&error];
                                                                 if (error) {
                                                                     failCallback(error);
@@ -188,7 +188,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                             }
                                                         }
                                                         
-                                                        [CodePushUpdateUtils copyEntriesInFolder:unzippedFolderPath
+                                                        [SparksUpdateUtils copyEntriesInFolder:unzippedFolderPath
                                                                                       destFolder:newUpdateFolderPath
                                                                                            error:&error];
                                                         if (error) {
@@ -203,7 +203,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                             nonFailingError = nil;
                                                         }
                                                         
-                                                        NSString *relativeBundlePath = [CodePushUpdateUtils findMainBundleInFolder:newUpdateFolderPath
+                                                        NSString *relativeBundlePath = [SparksUpdateUtils findMainBundleInFolder:newUpdateFolderPath
                                                                                                                   expectedFileName:expectedBundleFileName
                                                                                                                              error:&error];
                                                         
@@ -215,9 +215,9 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                         if (relativeBundlePath) {
                                                             [mutableUpdatePackage setValue:relativeBundlePath forKey:RelativeBundlePathKey];
                                                         } else {
-                                                            NSString *errorMessage = [NSString stringWithFormat:@"Update is invalid - A JS bundle file named \"%@\" could not be found within the downloaded contents. Please ensure that your app is syncing with the correct deployment and that you are releasing your CodePush updates using the exact same JS bundle file name that was shipped with your app's binary.", expectedBundleFileName];
+                                                            NSString *errorMessage = [NSString stringWithFormat:@"Update is invalid - A JS bundle file named \"%@\" could not be found within the downloaded contents. Please ensure that your app is syncing with the correct deployment and that you are releasing your Sparks updates using the exact same JS bundle file name that was shipped with your app's binary.", expectedBundleFileName];
                                                             
-                                                            error = [CodePushErrorUtils errorWithMessage:errorMessage];
+                                                            error = [SparksErrorUtils errorWithMessage:errorMessage];
                                                             
                                                             failCallback(error);
                                                             return;
@@ -236,17 +236,17 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                         
                                                         BOOL isSignatureVerificationEnabled = (publicKey != nil);
                                                         
-                                                        NSString *signatureFilePath = [CodePushUpdateUtils getSignatureFilePath:newUpdateFolderPath];
+                                                        NSString *signatureFilePath = [SparksUpdateUtils getSignatureFilePath:newUpdateFolderPath];
                                                         BOOL isSignatureAppearedInBundle = [[NSFileManager defaultManager] fileExistsAtPath:signatureFilePath];
                                                         
                                                         if (isSignatureVerificationEnabled) {
                                                             if (isSignatureAppearedInBundle) {
-                                                                if (![CodePushUpdateUtils verifyFolderHash:newUpdateFolderPath
+                                                                if (![SparksUpdateUtils verifyFolderHash:newUpdateFolderPath
                                                                                               expectedHash:newUpdateHash
                                                                                                      error:&error]) {
                                                                     CPLog(@"The update contents failed the data integrity check.");
                                                                     if (!error) {
-                                                                        error = [CodePushErrorUtils errorWithMessage:@"The update contents failed the data integrity check."];
+                                                                        error = [SparksErrorUtils errorWithMessage:@"The update contents failed the data integrity check."];
                                                                     }
                                                                     
                                                                     failCallback(error);
@@ -254,14 +254,14 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                                 } else {
                                                                     CPLog(@"The update contents succeeded the data integrity check.");
                                                                 }
-                                                                BOOL isSignatureValid = [CodePushUpdateUtils verifyUpdateSignatureFor:newUpdateFolderPath
+                                                                BOOL isSignatureValid = [SparksUpdateUtils verifyUpdateSignatureFor:newUpdateFolderPath
                                                                                                                          expectedHash:newUpdateHash
                                                                                                                         withPublicKey:publicKey
                                                                                                                                 error:&error];
                                                                 if (!isSignatureValid) {
                                                                     CPLog(@"The update contents failed code signing check.");
                                                                     if (!error) {
-                                                                        error = [CodePushErrorUtils errorWithMessage:@"The update contents failed code signing check."];
+                                                                        error = [SparksErrorUtils errorWithMessage:@"The update contents failed code signing check."];
                                                                     }
                                                                     failCallback(error);
                                                                     return;
@@ -269,11 +269,11 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                                     CPLog(@"The update contents succeeded the code signing check.");
                                                                 }
                                                             } else {
-                                                                error = [CodePushErrorUtils errorWithMessage:
+                                                                error = [SparksErrorUtils errorWithMessage:
                                                                          @"Error! Public key was provided but there is no JWT signature within app bundle to verify " \
                                                                          "Possible reasons, why that might happen: \n" \
-                                                                         "1. You've been released CodePush bundle update using version of CodePush CLI that is not support code signing.\n" \
-                                                                         "2. You've been released CodePush bundle update without providing --privateKeyPath option."];
+                                                                         "1. You've been released Sparks bundle update using version of Sparks CLI that is not support code signing.\n" \
+                                                                         "2. You've been released Sparks bundle update without providing --privateKeyPath option."];
                                                                 failCallback(error);
                                                                 return;
                                                             }
@@ -281,7 +281,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                         } else {
                                                             BOOL needToVerifyHash;
                                                             if (isSignatureAppearedInBundle) {
-                                                                CPLog(@"Warning! JWT signature exists in codepush update but code integrity check couldn't be performed" \
+                                                                CPLog(@"Warning! JWT signature exists in Sparks update but code integrity check couldn't be performed" \
                                                                       " because there is no public key configured. " \
                                                                       "Please ensure that public key is properly configured within your application.");
                                                                 needToVerifyHash = true;
@@ -289,12 +289,12 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                                 needToVerifyHash = isDiffUpdate;
                                                             }
                                                             if(needToVerifyHash){
-                                                                if (![CodePushUpdateUtils verifyFolderHash:newUpdateFolderPath
+                                                                if (![SparksUpdateUtils verifyFolderHash:newUpdateFolderPath
                                                                                               expectedHash:newUpdateHash
                                                                                                      error:&error]) {
                                                                     CPLog(@"The update contents failed the data integrity check.");
                                                                     if (!error) {
-                                                                        error = [CodePushErrorUtils errorWithMessage:@"The update contents failed the data integrity check."];
+                                                                        error = [SparksErrorUtils errorWithMessage:@"The update contents failed the data integrity check."];
                                                                     }
                                                                     
                                                                     failCallback(error);
@@ -340,24 +340,24 @@ static NSString *const UnzippedFolderName = @"unzipped";
     [downloadHandler download:updatePackage[@"downloadUrl"]];
 }
 
-+ (NSString *)getCodePushPath
++ (NSString *)getSparksPath
 {
-    NSString* codePushPath = [[CodePush getApplicationSupportDirectory] stringByAppendingPathComponent:@"CodePush"];
-    if ([CodePush isUsingTestConfiguration]) {
-        codePushPath = [codePushPath stringByAppendingPathComponent:@"TestPackages"];
+    NSString* SparksPath = [[Sparks getApplicationSupportDirectory] stringByAppendingPathComponent:@"Sparks"];
+    if ([Sparks isUsingTestConfiguration]) {
+        SparksPath = [SparksPath stringByAppendingPathComponent:@"TestPackages"];
     }
     
-    return codePushPath;
+    return SparksPath;
 }
 
 + (NSDictionary *)getCurrentPackage:(NSError **)error
 {
-    NSString *packageHash = [CodePushPackage getCurrentPackageHash:error];
+    NSString *packageHash = [SparksPackage getCurrentPackageHash:error];
     if (!packageHash) {
         return nil;
     }
 
-    return [CodePushPackage getPackage:packageHash error:error];
+    return [SparksPackage getPackage:packageHash error:error];
 }
 
 + (NSString *)getCurrentPackageBundlePath:(NSError **)error
@@ -436,7 +436,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
 
 + (NSString *)getDownloadFilePath
 {
-    return [[self getCodePushPath] stringByAppendingPathComponent:DownloadFileName];
+    return [[self getSparksPath] stringByAppendingPathComponent:DownloadFileName];
 }
 
 + (NSDictionary *)getPackage:(NSString *)packageHash
@@ -464,7 +464,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
 
 + (NSString *)getPackageFolderPath:(NSString *)packageHash
 {
-    return [[self getCodePushPath] stringByAppendingPathComponent:packageHash];
+    return [[self getSparksPath] stringByAppendingPathComponent:packageHash];
 }
 
 + (NSDictionary *)getPreviousPackage:(NSError **)error
@@ -474,7 +474,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
         return nil;
     }
     
-    return [CodePushPackage getPackage:packageHash error:error];
+    return [SparksPackage getPackage:packageHash error:error];
 }
 
 + (NSString *)getPreviousPackageHash:(NSError **)error
@@ -489,12 +489,12 @@ static NSString *const UnzippedFolderName = @"unzipped";
 
 + (NSString *)getStatusFilePath
 {
-    return [[self getCodePushPath] stringByAppendingPathComponent:StatusFile];
+    return [[self getSparksPath] stringByAppendingPathComponent:StatusFile];
 }
 
 + (NSString *)getUnzippedFolderPath
 {
-    return [[self getCodePushPath] stringByAppendingPathComponent:UnzippedFolderName];
+    return [[self getSparksPath] stringByAppendingPathComponent:UnzippedFolderName];
 }
 
 + (BOOL)installPackage:(NSDictionary *)updatePackage

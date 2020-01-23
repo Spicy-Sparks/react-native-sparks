@@ -8,14 +8,14 @@
 
 #import <Foundation/Foundation.h>
 
-@interface CodePush : RCTEventEmitter
+@interface Sparks : RCTEventEmitter
 
 + (NSURL *)binaryBundleURL;
 /*
  * This method is used to retrieve the URL for the most recent
  * version of the JavaScript bundle. This could be either the
  * bundle that was packaged with the app binary, or the bundle
- * that was downloaded as part of a CodePush update. The value returned
+ * that was downloaded as part of a Sparks update. The value returned
  * should be used to "bootstrap" the React Native bridge.
  *
  * This method assumes that your JS bundle is named "main.jsbundle"
@@ -52,7 +52,7 @@
 /*
  * This method allows dynamically setting the app's
  * deployment key, in addition to setting it via
- * the Info.plist file's CodePushDeploymentKey setting.
+ * the Info.plist file's SparksDeploymentKey setting.
  */
 + (void)setDeploymentKey:(NSString *)deploymentKey;
 
@@ -95,7 +95,7 @@
 
 @end
 
-@interface CodePushConfig : NSObject
+@interface SparksConfig : NSObject
 
 @property (copy) NSString *appVersion;
 @property (readonly) NSString *buildVersion;
@@ -108,7 +108,7 @@
 
 @end
 
-@interface CodePushDownloadHandler : NSObject <NSURLConnectionDelegate>
+@interface SparksDownloadHandler : NSObject <NSURLConnectionDelegate>
 
 @property (strong) NSOutputStream *outputFileStream;
 @property long long expectedContentLength;
@@ -129,14 +129,14 @@ failCallback:(void (^)(NSError *err))failCallback;
 
 @end
 
-@interface CodePushErrorUtils : NSObject
+@interface SparksErrorUtils : NSObject
 
 + (NSError *)errorWithMessage:(NSString *)errorMessage;
-+ (BOOL)isCodePushError:(NSError *)error;
++ (BOOL)isSparksError:(NSError *)error;
 
 @end
 
-@interface CodePushPackage : NSObject
+@interface SparksPackage : NSObject
 
 + (void)downloadPackage:(NSDictionary *)updatePackage
  expectedBundleFileName:(NSString *)expectedBundleFileName
@@ -169,7 +169,7 @@ failCallback:(void (^)(NSError *err))failCallback;
 
 @end
 
-@interface CodePushTelemetryManager : NSObject
+@interface SparksTelemetryManager : NSObject
 
 + (NSDictionary *)getBinaryUpdateReport:(NSString *)appVersion;
 + (NSDictionary *)getRetryStatusReport;
@@ -180,7 +180,7 @@ failCallback:(void (^)(NSError *err))failCallback;
 
 @end
 
-@interface CodePushUpdateUtils : NSObject
+@interface SparksUpdateUtils : NSObject
 
 + (BOOL)copyEntriesInFolder:(NSString *)sourceFolder
                  destFolder:(NSString *)destFolder
@@ -221,15 +221,15 @@ failCallback:(void (^)(NSError *err))failCallback;
 
 void CPLog(NSString *formatString, ...);
 
-typedef NS_ENUM(NSInteger, CodePushInstallMode) {
-    CodePushInstallModeImmediate,
-    CodePushInstallModeOnNextRestart,
-    CodePushInstallModeOnNextResume,
-    CodePushInstallModeOnNextSuspend
+typedef NS_ENUM(NSInteger, SparksInstallMode) {
+    SparksInstallModeImmediate,
+    SparksInstallModeOnNextRestart,
+    SparksInstallModeOnNextResume,
+    SparksInstallModeOnNextSuspend
 };
 
-typedef NS_ENUM(NSInteger, CodePushUpdateState) {
-    CodePushUpdateStateRunning,
-    CodePushUpdateStatePending,
-    CodePushUpdateStateLatest
+typedef NS_ENUM(NSInteger, SparksUpdateState) {
+    SparksUpdateStateRunning,
+    SparksUpdateStatePending,
+    SparksUpdateStateLatest
 };

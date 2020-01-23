@@ -1,18 +1,18 @@
-#import "CodePush.h"
+#import "Sparks.h"
 
 static NSString *const AppVersionKey = @"appVersion";
 static NSString *const DeploymentFailed = @"DeploymentFailed";
 static NSString *const DeploymentKeyKey = @"deploymentKey";
 static NSString *const DeploymentSucceeded = @"DeploymentSucceeded";
 static NSString *const LabelKey = @"label";
-static NSString *const LastDeploymentReportKey = @"CODE_PUSH_LAST_DEPLOYMENT_REPORT";
+static NSString *const LastDeploymentReportKey = @"SPARKS_LAST_DEPLOYMENT_REPORT";
 static NSString *const PackageKey = @"package";
 static NSString *const PreviousDeploymentKeyKey = @"previousDeploymentKey";
 static NSString *const PreviousLabelOrAppVersionKey = @"previousLabelOrAppVersion";
-static NSString *const RetryDeploymentReportKey = @"CODE_PUSH_RETRY_DEPLOYMENT_REPORT";
+static NSString *const RetryDeploymentReportKey = @"SPARKS_RETRY_DEPLOYMENT_REPORT";
 static NSString *const StatusKey = @"status";
 
-@implementation CodePushTelemetryManager
+@implementation SparksTelemetryManager
 
 + (NSDictionary *)getBinaryUpdateReport:(NSString *)appVersion
 {
@@ -21,7 +21,7 @@ static NSString *const StatusKey = @"status";
         [self clearRetryStatusReport];
         return @{ AppVersionKey: appVersion };
     } else if (![previousStatusReportIdentifier isEqualToString:appVersion]) {
-        if ([self isStatusReportIdentifierCodePushLabel:previousStatusReportIdentifier]) {
+        if ([self isStatusReportIdentifierSparksLabel:previousStatusReportIdentifier]) {
             NSString *previousDeploymentKey = [self getDeploymentKeyFromStatusReportIdentifier:previousStatusReportIdentifier];
             NSString *previousLabel = [self getVersionLabelFromStatusReportIdentifier:previousStatusReportIdentifier];
             [self clearRetryStatusReport];
@@ -76,7 +76,7 @@ static NSString *const StatusKey = @"status";
                     };
         } else if (![previousStatusReportIdentifier isEqualToString:currentPackageIdentifier]) {
             [self clearRetryStatusReport];
-            if ([self isStatusReportIdentifierCodePushLabel:previousStatusReportIdentifier]) {
+            if ([self isStatusReportIdentifierSparksLabel:previousStatusReportIdentifier]) {
                 NSString *previousDeploymentKey = [self getDeploymentKeyFromStatusReportIdentifier:previousStatusReportIdentifier];
                 NSString *previousLabel = [self getVersionLabelFromStatusReportIdentifier:previousStatusReportIdentifier];
                 return @{
@@ -160,7 +160,7 @@ static NSString *const StatusKey = @"status";
     return [[statusReportIdentifier componentsSeparatedByString:@":"] lastObject];
 }
 
-+ (BOOL)isStatusReportIdentifierCodePushLabel:(NSString *)statusReportIdentifier
++ (BOOL)isStatusReportIdentifierSparksLabel:(NSString *)statusReportIdentifier
 {
     return statusReportIdentifier != nil && [statusReportIdentifier rangeOfString:@":"].location != NSNotFound;
 }
