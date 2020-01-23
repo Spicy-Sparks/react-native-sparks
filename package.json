@@ -1,0 +1,115 @@
+{
+  "_args": [
+    [
+      "react-native-sparks@1.0.0",
+      "/Users/marco/eSound"
+    ]
+  ],
+  "_from": "react-native-sparks@1.0.0",
+  "_id": "react-native-sparks@1.0.0",
+  "_inBundle": false,
+  "_integrity": "sha512-CjAAQg0/RnZQaU1mzs3dMEzbiNTglwpXI6UrJKbsw3+Y1PAdmtqkscWAFyphFc80acMZzaYxxEzMQSwcmIOECQ==",
+  "_location": "/react-native-sparks",
+  "_phantomChildren": {
+    "bplist-creator": "0.0.7",
+    "bplist-parser": "0.1.1",
+    "cli-width": "2.2.0",
+    "code-point-at": "1.1.0",
+    "escape-string-regexp": "1.0.5",
+    "exit-hook": "1.1.1",
+    "extend": "3.0.2",
+    "has-ansi": "2.0.0",
+    "inflight": "1.0.6",
+    "inherits": "2.0.4",
+    "lodash": "4.17.15",
+    "minimatch": "3.0.4",
+    "number-is-nan": "1.0.1",
+    "object-assign": "4.1.1",
+    "once": "1.4.0",
+    "os-tmpdir": "1.0.2",
+    "path-is-absolute": "1.0.1",
+    "pegjs": "0.10.0",
+    "pinkie-promise": "2.0.1",
+    "run-async": "2.3.0",
+    "rx": "4.1.0",
+    "spawn-sync": "1.0.15",
+    "through": "2.3.8",
+    "xmldom": "0.1.27"
+  },
+  "_requested": {
+    "type": "version",
+    "registry": true,
+    "raw": "react-native-sparks@6.0.0",
+    "name": "react-native-sparks",
+    "escapedName": "react-native-sparks",
+    "rawSpec": "1.0.0",
+    "saveSpec": null,
+    "fetchSpec": "1.0.0"
+  },
+  "_requiredBy": [
+    "/"
+  ],
+  "_resolved": "https://registry.npmjs.org/react-native-sparks/-/react-native-sparks-1.0.0.tgz",
+  "_spec": "1.0.0",
+  "_where": "/Users/marco/eSound",
+  "author": {
+    "name": "Spicy Sparks"
+  },
+  "bugs": {
+    "url": "https://github.com/marf/react-native-sparks/issues"
+  },
+  "dependencies": {
+    "code-push": "^3.0.1",
+    "glob": "^5.0.15",
+    "hoist-non-react-statics": "^2.3.1",
+    "inquirer": "^1.1.2",
+    "plist": "3.0.1",
+    "semver": "^5.6.0",
+    "xcode": "1.0.0"
+  },
+  "description": "React Native Plugin for Spicy Sparks SDK",
+  "devDependencies": {
+    "archiver": "latest",
+    "body-parser": "latest",
+    "sparks-plugin-testing-framework": "file:./sparks-plugin-testing-framework",
+    "del": "latest",
+    "express": "latest",
+    "gulp-insert": "latest",
+    "gulp-tslint": "latest",
+    "gulp-typescript": "^5.0.1",
+    "mkdirp": "latest",
+    "q": "^1.5.1",
+    "run-sequence": "latest",
+    "tslint": "^5.18.0",
+    "typescript": "^2.9.2"
+  },
+  "homepage": "https://spicysparks.com",
+  "keywords": [
+    "react-native",
+    "spicy",
+    "sparks"
+  ],
+  "license": "MIT",
+  "main": "Sparks.js",
+  "name": "react-native-sparks",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marf/react-native-sparks.git"
+  },
+  "rnpm": {
+    "android": {
+      "packageInstance": "new Sparks(getResources().getString(R.string.SparksAPIKey), getApplicationContext(), BuildConfig.DEBUG)"
+    },
+    "ios": {
+      "sharedLibraries": [
+        "libz"
+      ]
+    },
+    "commands": {
+      "postlink": "node node_modules/react-native-sparks/scripts/postlink/run",
+      "postunlink": "node node_modules/react-native-sparks/scripts/postunlink/run"
+    }
+  },
+  "typings": "typings/react-native-sparks.d.ts",
+  "version": "1.0.0"
+}
