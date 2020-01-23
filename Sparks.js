@@ -1,4 +1,4 @@
-import { AcquisitionManager as Sdk } from "sparks/script/acquisition-sdk";
+import { AcquisitionManager as Sdk } from "Sparks/script/acquisition-sdk";
 import { Alert } from "./AlertAdapter";
 import requestFetchAdapter from "./request-fetch-adapter";
 import { AppState, Platform } from "react-native";

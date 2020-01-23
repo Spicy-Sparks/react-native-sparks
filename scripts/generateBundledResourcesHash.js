@@ -17,9 +17,9 @@ var path = require("path");
 
 var getFilesInFolder = require("./getFilesInFolder");
 
-var CODE_PUSH_FOLDER_PREFIX = "CodePush";
-var CODE_PUSH_HASH_FILE_NAME = "CodePushHash";
-var CODE_PUSH_HASH_OLD_FILE_NAME = "CodePushHash.json";
+var CODE_PUSH_FOLDER_PREFIX = "Sparks";
+var CODE_PUSH_HASH_FILE_NAME = "SparksHash";
+var CODE_PUSH_HASH_OLD_FILE_NAME = "SparksHash.json";
 var HASH_ALGORITHM = "sha256";
 
 var resourcesDir = process.argv[2];
@@ -77,14 +77,14 @@ function addJsBundleAndMetaToManifest() {
 
             console.log(finalHash);
 
-            var savedResourcesManifestPath = assetsDir + "/" + CODE_PUSH_HASH_FILE_NAME;
+            var savedResourcesManifestPath = assetsDir + "/" + SPARKS_HASH_FILE_NAME;
             fs.writeFileSync(savedResourcesManifestPath, finalHash);
 
             // "CodePushHash.json" file name breaks flow type checking.
             // To fix the issue we need to delete "CodePushHash.json" file and
             // use "CodePushHash" file name instead to store the hash value.
             // Relates to https://github.com/Microsoft/react-native-code-push/issues/577
-            var oldSavedResourcesManifestPath = assetsDir + "/" + CODE_PUSH_HASH_OLD_FILE_NAME;
+            var oldSavedResourcesManifestPath = assetsDir + "/" + SPARKS_HASH_OLD_FILE_NAME;
             if (fs.existsSync(oldSavedResourcesManifestPath)) {
                 fs.unlinkSync(oldSavedResourcesManifestPath);
             }
@@ -110,7 +110,7 @@ function addFileToManifest(folder, assetFile, manifest, done) {
             hashStream.end();
             var buffer = hashStream.read();
             var fileHash = buffer.toString("hex");
-            manifest.push(path.join(CODE_PUSH_FOLDER_PREFIX, assetFile).replace(/\\/g, "/") + ":" + fileHash);
+            manifest.push(path.join(SPARKS_FOLDER_PREFIX, assetFile).replace(/\\/g, "/") + ":" + fileHash);
             done();
         });
 }

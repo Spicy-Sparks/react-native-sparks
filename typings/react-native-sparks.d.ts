@@ -1,13 +1,13 @@
 export type DownloadProgressCallback = (progress: DownloadProgress) => void;
-export type SyncStatusChangedCallback = (status: CodePush.SyncStatus) => void;
+export type SyncStatusChangedCallback = (status: Sparks.SyncStatus) => void;
 export type HandleBinaryVersionMismatchCallback = (update: RemotePackage) => void;
 
-export interface CodePushOptions extends SyncOptions {
+export interface SparksOptions extends SyncOptions {
     /**
-     * Specifies when you would like to synchronize updates with the CodePush server.
-     * Defaults to codePush.CheckFrequency.ON_APP_START.
+     * Specifies when you would like to synchronize updates with the Sparks server.
+     * Defaults to Sparks.CheckFrequency.ON_APP_START.
      */
-    checkFrequency: CodePush.CheckFrequency;
+    checkFrequency: Sparks.CheckFrequency;
 }
 
 export interface DownloadProgress {
@@ -29,7 +29,7 @@ export interface LocalPackage extends Package {
      * @param installMode Indicates when you would like the update changes to take affect for the end-user.
      * @param minimumBackgroundDuration For resume-based installs, this specifies the number of seconds the app needs to be in the background before forcing a restart. Defaults to 0 if unspecified.
      */
-    install(installMode: CodePush.InstallMode, minimumBackgroundDuration?: number): Promise<void>;
+    install(installMode: Sparks.InstallMode, minimumBackgroundDuration?: number): Promise<void>;
 }
 
 export interface Package {
@@ -40,9 +40,9 @@ export interface Package {
     appVersion: string;
 
     /**
-     * The deployment key that was used to originally download this update.
+     * The api key of Sarks service
      */
-    deploymentKey: string;
+    apiKey: string;
 
     /**
      * The description of the update. This is the same value that you specified in the CLI when you released the update.
@@ -71,7 +71,7 @@ export interface Package {
     isPending: boolean;
 
     /**
-     * The internal label automatically given to the update by the CodePush server. This value uniquely identifies the update within its deployment.
+     * The internal label automatically given to the update by the Sparks server. This value uniquely identifies the update within its deployment.
      */
     label: string;
 
@@ -88,7 +88,7 @@ export interface Package {
 
 export interface RemotePackage extends Package {
     /**
-     * Downloads the available update from the CodePush service.
+     * Downloads the available update from the Sparks service.
      *
      * @param downloadProgressCallback An optional callback that allows tracking the progress of the update while it is being downloaded.
      */
@@ -106,19 +106,19 @@ export interface SyncOptions {
      * file (iOS) and MainActivity.java file (Android), but this option allows you to override it from the script-side if you need to
      * dynamically use a different deployment for a specific call to sync.
      */
-    deploymentKey?: string;
+    apiKey?: string;
 
     /**
      * Specifies when you would like to install optional updates (i.e. those that aren't marked as mandatory).
-     * Defaults to codePush.InstallMode.ON_NEXT_RESTART.
+     * Defaults to sparks.InstallMode.ON_NEXT_RESTART.
      */
-    installMode?: CodePush.InstallMode;
+    installMode?: Sparks.InstallMode;
 
     /**
      * Specifies when you would like to install updates which are marked as mandatory.
-     * Defaults to codePush.InstallMode.IMMEDIATE.
+     * Defaults to sparks.InstallMode.IMMEDIATE.
      */
-    mandatoryInstallMode?: CodePush.InstallMode;
+    mandatoryInstallMode?: Sparks.InstallMode;
 
     /**
      * Specifies the minimum number of seconds that the app needs to have been in the background before restarting the app. This property
@@ -209,7 +209,7 @@ export interface StatusReport {
     /**
      * Whether the deployment succeeded or failed.
      */
-    status: CodePush.DeploymentStatus;
+    status: Sparks.DeploymentStatus;
 
     /**
      * The version of the app that was deployed (for a native app upgrade).
@@ -233,13 +233,13 @@ export interface StatusReport {
 }
 
 /**
- * Decorates a React Component configuring it to sync for updates with the CodePush server.
+ * Decorates a React Component configuring it to sync for updates with the Sparks server.
  *
  * @param options Options used to configure the end-user sync and update experience (e.g. when to check for updates?, show an prompt?, install the update immediately?).
  */
-declare function CodePush(options?: CodePushOptions): (x: any) => any;
+declare function Sparks(options?: SparksOptions): (x: any) => any;
 
-declare namespace CodePush {
+declare namespace Sparks {
     /**
      * Represents the default settings that will be used by the sync method if
      * an update dialog is configured to be displayed.
@@ -247,13 +247,13 @@ declare namespace CodePush {
     var DEFAULT_UPDATE_DIALOG: UpdateDialog;
 
     /**
-     * Asks the CodePush service whether the configured app deployment has an update available.
+     * Asks the Sparks service whether the configured app deployment has an update available.
      *
-     * @param deploymentKey The deployment key to use to query the CodePush server for an update.
-     * 
+     * @param apiKey The api key to use to query the Sparks service
+     *
      * @param handleBinaryVersionMismatchCallback An optional callback for handling target binary version mismatch
      */
-    function checkForUpdate(deploymentKey?: string, handleBinaryVersionMismatchCallback?: HandleBinaryVersionMismatchCallback): Promise<RemotePackage | null>;
+    function checkForUpdate(apiKey?: string, handleBinaryVersionMismatchCallback?: HandleBinaryVersionMismatchCallback): Promise<RemotePackage | null>;
 
     /**
      * Retrieves the metadata for an installed update (e.g. description, mandatory).
@@ -263,24 +263,24 @@ declare namespace CodePush {
     function getUpdateMetadata(updateState?: UpdateState) : Promise<LocalPackage|null>;
 
     /**
-     * Notifies the CodePush runtime that an installed update is considered successful.
+     * Notifies the Sparks runtime that an installed update is considered successful.
      */
     function notifyAppReady(): Promise<StatusReport|void>;
 
     /**
-     * Allow CodePush to restart the app.
+     * Allow Sparks to restart the app.
      */
     function allowRestart(): void;
 
     /**
-     * Forbid CodePush to restart the app.
+     * Forbid Sparks to restart the app.
      */
     function disallowRestart(): void;
 
     /**
-     * Clear all downloaded CodePush updates.
+     * Clear all downloaded Sparks updates.
      * This is useful when switching to a different deployment which may have an older release than the current package.
-     * Note: we don’t recommend to use this method in scenarios other than that (CodePush will call
+     * Note: we don’t recommend to use this method in scenarios other than that (Sparks will call
      * this method automatically when needed in other cases) as it could lead to unpredictable behavior.
      */
     function clearUpdates(): void;
@@ -335,35 +335,35 @@ declare namespace CodePush {
      */
     enum SyncStatus {
         /**
-         * The app is up-to-date with the CodePush server.
+         * The app is up-to-date with the Sparks server.
          */
         UP_TO_DATE,
-            
+
         /**
          * An available update has been installed and will be run either immediately after the
          * syncStatusChangedCallback function returns or the next time the app resumes/restarts,
          * depending on the InstallMode specified in SyncOptions
          */
         UPDATE_INSTALLED,
-            
+
         /**
          * The app had an optional update which the end user chose to ignore.
          * (This is only applicable when the updateDialog is used)
          */
         UPDATE_IGNORED,
-            
+
         /**
          * The sync operation encountered an unknown error.
          */
         UNKNOWN_ERROR,
-        
+
         /**
          * There is an ongoing sync operation running which prevents the current call from being executed.
          */
         SYNC_IN_PROGRESS,
-            
+
         /**
-         * The CodePush server is being queried for an update.
+         * The Sparks server is being queried for an update.
          */
         CHECKING_FOR_UPDATE,
 
@@ -374,7 +374,7 @@ declare namespace CodePush {
         AWAITING_USER_ACTION,
 
         /**
-         * An available update is being downloaded from the CodePush server.
+         * An available update is being downloaded from the Sparks server.
          */
         DOWNLOADING_PACKAGE,
 
@@ -423,7 +423,7 @@ declare namespace CodePush {
     }
 
     /**
-     * Indicates when you would like to check for (and install) updates from the CodePush server.
+     * Indicates when you would like to check for (and install) updates from the Sparks server.
      */
     enum CheckFrequency {
         /**
@@ -443,4 +443,4 @@ declare namespace CodePush {
     }
 }
 
-export default CodePush;
+export default Sparks;

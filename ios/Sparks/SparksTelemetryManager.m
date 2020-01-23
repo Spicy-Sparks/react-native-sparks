@@ -2,12 +2,12 @@
 
 static NSString *const AppVersionKey = @"appVersion";
 static NSString *const DeploymentFailed = @"DeploymentFailed";
-static NSString *const DeploymentKeyKey = @"deploymentKey";
+static NSString *const ApiKey = @"apiKey";
 static NSString *const DeploymentSucceeded = @"DeploymentSucceeded";
 static NSString *const LabelKey = @"label";
 static NSString *const LastDeploymentReportKey = @"SPARKS_LAST_DEPLOYMENT_REPORT";
 static NSString *const PackageKey = @"package";
-static NSString *const PreviousDeploymentKeyKey = @"previousDeploymentKey";
+static NSString *const PreviousApiKey = @"previousApiKey";
 static NSString *const PreviousLabelOrAppVersionKey = @"previousLabelOrAppVersion";
 static NSString *const RetryDeploymentReportKey = @"SPARKS_RETRY_DEPLOYMENT_REPORT";
 static NSString *const StatusKey = @"status";
@@ -22,12 +22,12 @@ static NSString *const StatusKey = @"status";
         return @{ AppVersionKey: appVersion };
     } else if (![previousStatusReportIdentifier isEqualToString:appVersion]) {
         if ([self isStatusReportIdentifierSparksLabel:previousStatusReportIdentifier]) {
-            NSString *previousDeploymentKey = [self getDeploymentKeyFromStatusReportIdentifier:previousStatusReportIdentifier];
+            NSString *previousApiKey = [self getApiKeyFromStatusReportIdentifier:previousStatusReportIdentifier];
             NSString *previousLabel = [self getVersionLabelFromStatusReportIdentifier:previousStatusReportIdentifier];
             [self clearRetryStatusReport];
             return @{
                       AppVersionKey: appVersion,
-                      PreviousDeploymentKeyKey: previousDeploymentKey,
+                      PreviousApiKey: previousApiKey,
                       PreviousLabelOrAppVersionKey: previousLabel
                     };
         } else {
@@ -77,12 +77,12 @@ static NSString *const StatusKey = @"status";
         } else if (![previousStatusReportIdentifier isEqualToString:currentPackageIdentifier]) {
             [self clearRetryStatusReport];
             if ([self isStatusReportIdentifierSparksLabel:previousStatusReportIdentifier]) {
-                NSString *previousDeploymentKey = [self getDeploymentKeyFromStatusReportIdentifier:previousStatusReportIdentifier];
+                NSString *previousApiKey = [self getApiKeyFromStatusReportIdentifier:previousStatusReportIdentifier];
                 NSString *previousLabel = [self getVersionLabelFromStatusReportIdentifier:previousStatusReportIdentifier];
                 return @{
                           PackageKey: currentPackage,
                           StatusKey: DeploymentSucceeded,
-                          PreviousDeploymentKeyKey: previousDeploymentKey,
+                          PreviousApiKey: previousApiKey,
                           PreviousLabelOrAppVersionKey: previousLabel
                         };
             } else {
@@ -130,19 +130,19 @@ static NSString *const StatusKey = @"status";
     [preferences synchronize];
 }
 
-+ (NSString *)getDeploymentKeyFromStatusReportIdentifier:(NSString *)statusReportIdentifier
++ (NSString *)getApiKeyFromStatusReportIdentifier:(NSString *)statusReportIdentifier
 {
     return [[statusReportIdentifier componentsSeparatedByString:@":"] firstObject];
 }
 
 + (NSString *)getPackageStatusReportIdentifier:(NSDictionary *)package
 {
-    // Because deploymentKeys can be dynamically switched, we use a
-    // combination of the deploymentKey and label as the packageIdentifier.
-    NSString *deploymentKey = [package objectForKey:DeploymentKeyKey];
+    // Because apiKeys can be dynamically switched, we use a
+    // combination of the apiKey and label as the packageIdentifier.
+    NSString *apiKey = [package objectForKey:ApiKey];
     NSString *label = [package objectForKey:LabelKey];
-    if (deploymentKey && label) {
-        return [[deploymentKey stringByAppendingString:@":"] stringByAppendingString:label];
+    if (apiKey && label) {
+        return [[apiKey stringByAppendingString:@":"] stringByAppendingString:label];
     } else {
         return nil;
     }

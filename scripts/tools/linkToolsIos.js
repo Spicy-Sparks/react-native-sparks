@@ -7,11 +7,11 @@ var ignoreNodeModules = { ignore: "node_modules/**" };
 var ignoreNodeModulesAndPods = { ignore: ["node_modules/**", "ios/Pods/**"] };
 var appDelegatePaths = glob.sync("**/AppDelegate.+(mm|m)", ignoreNodeModules);
 
-exports.codePushHeaderImportStatement = `#import <CodePush/CodePush.h>`;
-exports.codePushHeaderImportStatementFormatted = `\n${this.codePushHeaderImportStatement}`;
-exports.codePushBundleUrl = "[CodePush bundleURL]";
+exports.sparksHeaderImportStatement = `#import <Sparks/Sparks.h>`;
+exports.sparksHeaderImportStatementFormatted = `\n${this.codePushHeaderImportStatement}`;
+exports.sparksBundleUrl = "[Sparks init]";
 exports.oldBundleUrl = "[[NSBundle mainBundle] URLForResource:@\"main\" withExtension:@\"jsbundle\"]";
-exports.linkedJsCodeLocationAssignmentStatement = "jsCodeLocation = [CodePush bundleURL];";
+exports.linkedJsCodeLocationAssignmentStatement = "jsCodeLocation = [Sparks init];";
 
 exports.getJsCodeLocationPatch = function(defaultJsCodeLocationAssignmentStatement) {
     return `

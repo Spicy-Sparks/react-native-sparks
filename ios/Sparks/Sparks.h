@@ -52,9 +52,9 @@
 /*
  * This method allows dynamically setting the app's
  * deployment key, in addition to setting it via
- * the Info.plist file's SparksDeploymentKey setting.
+ * the Info.plist file's SparksApiKey setting.
  */
-+ (void)setDeploymentKey:(NSString *)deploymentKey;
++ (void)setApiKeyKey:(NSString *)apiKey;
 
 /*
  * This method checks to see whether a specific package hash
@@ -100,7 +100,7 @@
 @property (copy) NSString *appVersion;
 @property (readonly) NSString *buildVersion;
 @property (readonly) NSDictionary *configuration;
-@property (copy) NSString *deploymentKey;
+@property (copy) NSString *apiKey;
 @property (copy) NSString *serverURL;
 @property (copy) NSString *publicKey;
 

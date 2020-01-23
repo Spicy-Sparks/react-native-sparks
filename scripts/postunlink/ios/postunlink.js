@@ -14,28 +14,28 @@ module.exports = () => {
     if (!appDelegatePath) {
         console.log(`Couldn't find AppDelegate. You might need to update it manually \
     Please refer to plugin configuration section for iOS at \
-    https://github.com/microsoft/react-native-code-push#plugin-configuration-ios`);
+    https://github.com/marf/react-native-sparks`);
     } else {
         var appDelegateContents = fs.readFileSync(appDelegatePath, "utf8");
 
         // 1. Remove the header import statement
-        if (!~appDelegateContents.indexOf(linkTools.codePushHeaderImportStatement)) {
-            console.log(`"CodePush.h" header already removed.`);
+        if (!~appDelegateContents.indexOf(linkTools.sparksHeaderImportStatement)) {
+            console.log(`"Sparks.h" header already removed.`);
         } else {
-            appDelegateContents = appDelegateContents.replace(linkTools.codePushHeaderImportStatementFormatted, "");
+            appDelegateContents = appDelegateContents.replace(linkTools.sparksHeaderImportStatementFormatted, "");
         }
 
         // 2. Modify jsCodeLocation value assignment
-        var codePushBundleUrl = linkTools.codePushBundleUrl;
-        if (!~appDelegateContents.indexOf(codePushBundleUrl)) {
-            console.log(`"jsCodeLocation" already not pointing to "[CodePush bundleURL]".`);
+        var sparksBundleUrl = linkTools.sparksBundleUrl;
+        if (!~appDelegateContents.indexOf(sparksBundleUrl)) {
+            console.log(`"jsCodeLocation" already not pointing to "[Sparks init]".`);
         } else {
             var reactNativeVersion = packageFile && packageFile.dependencies && packageFile.dependencies["react-native"];
             if (!reactNativeVersion) {
                 console.log(`Can't take react-native version from package.json`);
             } else if (semver.gte(semver.coerce(reactNativeVersion), "0.59.0")) {
                 var oldBundleUrl = linkTools.oldBundleUrl;
-                appDelegateContents = appDelegateContents.replace(codePushBundleUrl, oldBundleUrl);
+                appDelegateContents = appDelegateContents.replace(sparksBundleUrl, oldBundleUrl);
                 fs.writeFileSync(appDelegatePath, appDelegateContents);
             } else {
                 var linkedJsCodeLocationAssignmentStatement = linkTools.linkedJsCodeLocationAssignmentStatement;
