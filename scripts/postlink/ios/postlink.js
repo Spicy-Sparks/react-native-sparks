@@ -16,18 +16,18 @@ module.exports = () => {
     if (!appDelegatePath) {
         return Promise.reject(`Couldn't find AppDelegate. You might need to update it manually \
     Please refer to plugin configuration section for iOS at \
-    https://github.com/microsoft/react-native-code-push#plugin-configuration-ios`);
+    https://github.com/marf/react-native-sparks`);
     }
 
     var appDelegateContents = fs.readFileSync(appDelegatePath, "utf8");
 
     // 1. Add the header import statement
-    if (~appDelegateContents.indexOf(linkTools.codePushHeaderImportStatement)) {
+    if (~appDelegateContents.indexOf(linkTools.sparksHeaderImportStatement)) {
         console.log(`"CodePush.h" header already imported.`);
     } else {
         var appDelegateHeaderImportStatement = `#import "AppDelegate.h"`;
         appDelegateContents = appDelegateContents.replace(appDelegateHeaderImportStatement,
-            `${appDelegateHeaderImportStatement}${linkTools.codePushHeaderImportStatementFormatted}`);
+            `${appDelegateHeaderImportStatement}${linkTools.sparksHeaderImportStatementFormatted}`);
     }
 
     // 2. Modify jsCodeLocation value assignment
@@ -37,13 +37,13 @@ module.exports = () => {
         console.log(`Can't take react-native version from package.json`);
     } else if (semver.gte(semver.coerce(reactNativeVersion), "0.59.0")) {
         var oldBundleUrl = linkTools.oldBundleUrl;
-        var codePushBundleUrl = linkTools.codePushBundleUrl;
+        var sparksBundleUrl = linkTools.sparksBundleUrl;
 
-        if (~appDelegateContents.indexOf(codePushBundleUrl)) {
+        if (~appDelegateContents.indexOf(sparksBundleUrl)) {
             console.log(`"BundleUrl" already pointing to "[CodePush bundleURL]".`);
         } else {
             if (~appDelegateContents.indexOf(oldBundleUrl)) {
-                appDelegateContents = appDelegateContents.replace(oldBundleUrl, codePushBundleUrl);
+                appDelegateContents = appDelegateContents.replace(oldBundleUrl, sparksBundleUrl);
             } else {
                 console.log(`AppDelegate isn't compatible for linking`);
             }
@@ -55,12 +55,12 @@ module.exports = () => {
             console.log('Couldn\'t find jsCodeLocation setting in AppDelegate.');
         }
 
-        var newJsCodeLocationAssignmentStatement = linkTools.codePushGradleLink;
+        var newJsCodeLocationAssignmentStatement = linkTools.sparksGradleLink;
         if (~appDelegateContents.indexOf(newJsCodeLocationAssignmentStatement)) {
             console.log(`"jsCodeLocation" already pointing to "[CodePush bundleURL]".`);
         } else {
             if (jsCodeLocations.length === 1) {
-                // If there is one `jsCodeLocation` it means that react-native app version is not the 0.57.8 or 0.57.0 and lower than 0.59 
+                // If there is one `jsCodeLocation` it means that react-native app version is not the 0.57.8 or 0.57.0 and lower than 0.59
                 // and we should replace this line with DEBUG ifdef statement and add CodePush call for Release case
 
                 var oldJsCodeLocationAssignmentStatement = jsCodeLocations[0];
@@ -84,7 +84,7 @@ module.exports = () => {
     if (!plistPath) {
         return Promise.reject(`Couldn't find .plist file. You might need to update it manually \
     Please refer to plugin configuration section for iOS at \
-    https://github.com/microsoft/react-native-code-push#plugin-configuration-ios`);
+    https://github.com/marf/react-native-sparks`);
     }
 
     var plistContents = fs.readFileSync(plistPath, "utf8");

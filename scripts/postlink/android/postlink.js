@@ -37,25 +37,25 @@ module.exports = () => {
         } else {
             return Promise.reject(`Couldn't find Android application entry point. You might need to update it manually. \
     Please refer to plugin configuration section for Android at \
-    https://github.com/microsoft/react-native-code-push/blob/master/docs/setup-android.md#plugin-configuration-for-react-native-lower-than-060-android for more details`);
+    https://github.com/microsoft/marf/react-native-sparks`);
         }
     }
 
     if (!fs.existsSync(buildGradlePath)) {
         return Promise.reject(`Couldn't find build.gradle file. You might need to update it manually. \
     Please refer to plugin installation section for Android at \
-    https://github.com/microsoft/react-native-code-push/blob/master/docs/setup-android.md#plugin-installation-android---manual`);
+    https://github.com/marf/react-native-sparks`);
     }
 
-    // 2. Add the codepush.gradle build task definitions
+    // 2. Add the sparks.gradle build task definitions
     var buildGradleContents = fs.readFileSync(buildGradlePath, "utf8");
     var reactGradleLink = buildGradleContents.match(/\napply from: ["'].*?react\.gradle["']/)[0];
-    var codePushGradleLink = linkTools.codePushGradleLink;
+    var sparksGradleLink = linkTools.sparksGradleLink;
     if (~buildGradleContents.indexOf(codePushGradleLink)) {
-        console.log(`"codepush.gradle" is already linked in the build definition`);
+        console.log(`"sparks.gradle" is already linked in the build definition`);
     } else {
         buildGradleContents = buildGradleContents.replace(reactGradleLink,
-            `${reactGradleLink}${codePushGradleLink}`);
+            `${reactGradleLink}${sparksGradleLink}`);
         fs.writeFileSync(buildGradlePath, buildGradleContents);
     }
 

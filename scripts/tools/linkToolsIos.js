@@ -8,7 +8,7 @@ var ignoreNodeModulesAndPods = { ignore: ["node_modules/**", "ios/Pods/**"] };
 var appDelegatePaths = glob.sync("**/AppDelegate.+(mm|m)", ignoreNodeModules);
 
 exports.sparksHeaderImportStatement = `#import <Sparks/Sparks.h>`;
-exports.sparksHeaderImportStatementFormatted = `\n${this.codePushHeaderImportStatement}`;
+exports.sparksHeaderImportStatementFormatted = `\n${this.sparksHeaderImportStatement}`;
 exports.sparksBundleUrl = "[Sparks init]";
 exports.oldBundleUrl = "[[NSBundle mainBundle] URLForResource:@\"main\" withExtension:@\"jsbundle\"]";
 exports.linkedJsCodeLocationAssignmentStatement = "jsCodeLocation = [Sparks init];";

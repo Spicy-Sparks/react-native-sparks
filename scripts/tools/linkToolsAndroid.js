@@ -8,12 +8,12 @@ var manifestPath = glob.sync("**/AndroidManifest.xml", ignoreFolders)[0];
 exports.getJSBundleFileOverride = `
     @Override
     protected String getJSBundleFile(){
-      return CodePush.getJSBundleFile();
+      return Sparks.getJSBundleFile();
     }
 `;
 exports.reactNativeHostInstantiation = "new ReactNativeHost(this) {";
 exports.mainActivityClassDeclaration = "public class MainActivity extends ReactActivity {";
-exports.codePushGradleLink = `\napply from: "../../node_modules/react-native-code-push/android/codepush.gradle"`;
+exports.sparksGradleLink = `\napply from: "../../node_modules/react-native-sparks/android/sparks.gradle"`;
 exports.deploymentKeyName = "CodePushDeploymentKey";
 
 exports.getMainApplicationLocation = function () {
