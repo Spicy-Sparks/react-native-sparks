@@ -17,9 +17,9 @@ var path = require("path");
 
 var getFilesInFolder = require("./getFilesInFolder");
 
-var CODE_PUSH_FOLDER_PREFIX = "Sparks";
-var CODE_PUSH_HASH_FILE_NAME = "SparksHash";
-var CODE_PUSH_HASH_OLD_FILE_NAME = "SparksHash.json";
+var SPARKS_FOLDER_PREFIX = "Sparks";
+var SPARKS_HASH_FILE_NAME = "SparksHash";
+var SPARKS_HASH_OLD_FILE_NAME = "SparksHash.json";
 var HASH_ALGORITHM = "sha256";
 
 var resourcesDir = process.argv[2];
