@@ -33,7 +33,7 @@ static NSString * const PublicKeyKey = @"publicKey";
 
     NSString *appVersion = [infoDictionary objectForKey:@"CFBundleShortVersionString"];
     NSString *buildVersion = [infoDictionary objectForKey:(NSString *)kCFBundleVersionKey];
-    NSString *apiKey = @"CKFSLZedzVl6RrfBlUovB5hpr6j018d1b93d-362a-412c-b924-a4b309eee0f7";
+    NSString *apiKey = @"zbvVxNhIOf_SM8TMr3qQMOzm4pN118d1b93d-362a-412c-b924-a4b309eee0f7";
     NSString *serverURL = [infoDictionary objectForKey:@"SparksServerURL"];
     NSString *publicKey = [infoDictionary objectForKey:@"SparksPublicKey"];
     
