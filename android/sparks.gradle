@@ -17,7 +17,7 @@ void runBefore(String dependentTaskName, Task task) {
 
 gradle.projectsEvaluated {
     android.buildTypes.each {
-        it.resValue 'string', "CODE_PUSH_APK_BUILD_TIME", String.format("\"%d\"", System.currentTimeMillis())
+        it.resValue 'string', "SPARKS_APK_BUILD_TIME", String.format("\"%d\"", System.currentTimeMillis())
     }
 
     android.applicationVariants.all { variant ->
