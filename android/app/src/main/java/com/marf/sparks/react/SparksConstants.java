@@ -9,7 +9,7 @@ public class SparksConstants {
     public static final String CODE_PUSH_PREFERENCES = "Sparks";
     public static final String CURRENT_PACKAGE_KEY = "currentPackage";
     public static final String DEFAULT_JS_BUNDLE_NAME = "index.android.bundle";
-    public static final String DIFF_MANIFEST_FILE_NAME = "hotSparks.json";
+    public static final String DIFF_MANIFEST_FILE_NAME = "hotcodepush.json";
     public static final int DOWNLOAD_BUFFER_SIZE = 1024 * 256;
     public static final String DOWNLOAD_FILE_NAME = "download.zip";
     public static final String DOWNLOAD_PROGRESS_EVENT_NAME = "SparksDownloadProgress";
