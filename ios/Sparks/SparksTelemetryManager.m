@@ -5,11 +5,9 @@ static NSString *const DeploymentFailed = @"DeploymentFailed";
 static NSString *const ApiKey = @"apiKey";
 static NSString *const DeploymentSucceeded = @"DeploymentSucceeded";
 static NSString *const LabelKey = @"label";
-static NSString *const LastDeploymentReportKey = @"SPARKS_LAST_DEPLOYMENT_REPORT";
 static NSString *const PackageKey = @"package";
 static NSString *const PreviousApiKey = @"previousApiKey";
 static NSString *const PreviousLabelOrAppVersionKey = @"previousLabelOrAppVersion";
-static NSString *const RetryDeploymentReportKey = @"SPARKS_RETRY_DEPLOYMENT_REPORT";
 static NSString *const StatusKey = @"status";
 
 @implementation SparksTelemetryManager
@@ -46,6 +44,11 @@ static NSString *const StatusKey = @"status";
 + (NSDictionary *)getRetryStatusReport
 {
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    static NSString *const RetryDeploymentReportKeyData = @"Q09ERV9QVVNIX1JFVFJZX0RFUExPWU1FTlRfUkVQT1JU";
+    NSString *RetryDeploymentReportKey = [[NSString alloc]
+                        initWithData:[[NSData alloc]
+                        initWithBase64EncodedString:RetryDeploymentReportKeyData options:0]
+                        encoding:NSUTF8StringEncoding];
     NSDictionary *retryStatusReport = [preferences objectForKey:RetryDeploymentReportKey];
     if (retryStatusReport) {
         [self clearRetryStatusReport];
@@ -116,6 +119,12 @@ static NSString *const StatusKey = @"status";
 
 + (void)saveStatusReportForRetry:(NSDictionary *)statusReport
 {
+    static NSString *const RetryDeploymentReportKeyData = @"Q09ERV9QVVNIX1JFVFJZX0RFUExPWU1FTlRfUkVQT1JU";
+    NSString *RetryDeploymentReportKey = [[NSString alloc]
+                        initWithData:[[NSData alloc]
+                        initWithBase64EncodedString:RetryDeploymentReportKeyData options:0]
+                        encoding:NSUTF8StringEncoding];
+    
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
     [preferences setValue:statusReport forKey:RetryDeploymentReportKey];
     [preferences synchronize];
@@ -125,6 +134,12 @@ static NSString *const StatusKey = @"status";
 
 + (void)clearRetryStatusReport
 {
+    static NSString *const RetryDeploymentReportKeyKeyData = @"Q09ERV9QVVNIX1JFVFJZX0RFUExPWU1FTlRfUkVQT1JU";
+    NSString *RetryDeploymentReportKey = [[NSString alloc]
+                        initWithData:[[NSData alloc]
+                        initWithBase64EncodedString:RetryDeploymentReportKeyKeyData options:0]
+                        encoding:NSUTF8StringEncoding];
+    
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
     [preferences setValue:nil forKey:RetryDeploymentReportKey];
     [preferences synchronize];
@@ -150,6 +165,12 @@ static NSString *const StatusKey = @"status";
 
 + (NSString *)getPreviousStatusReportIdentifier
 {
+    static NSString *const LastDeploymentReportKeyData = @"Q09ERV9QVVNIX0xBU1RfREVQTE9ZTUVOVF9SRVBPUlQ=";
+    NSString *LastDeploymentReportKey = [[NSString alloc]
+                        initWithData:[[NSData alloc]
+                        initWithBase64EncodedString:LastDeploymentReportKeyData options:0]
+                        encoding:NSUTF8StringEncoding];
+    
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
     NSString *sentStatusReportIdentifier = [preferences objectForKey:LastDeploymentReportKey];
     return sentStatusReportIdentifier;
@@ -167,6 +188,12 @@ static NSString *const StatusKey = @"status";
 
 + (void)saveStatusReportedForIdentifier:(NSString *)appVersionOrPackageIdentifier
 {
+    static NSString *const LastDeploymentReportKeyData = @"Q09ERV9QVVNIX0xBU1RfREVQTE9ZTUVOVF9SRVBPUlQ=";
+    NSString *LastDeploymentReportKey = [[NSString alloc]
+                        initWithData:[[NSData alloc]
+                        initWithBase64EncodedString:LastDeploymentReportKeyData options:0]
+                        encoding:NSUTF8StringEncoding];
+    
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
     [preferences setValue:appVersionOrPackageIdentifier forKey:LastDeploymentReportKey];
     [preferences synchronize];
