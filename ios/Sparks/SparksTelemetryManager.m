@@ -2,11 +2,11 @@
 
 static NSString *const AppVersionKey = @"appVersion";
 static NSString *const DeploymentFailed = @"DeploymentFailed";
-static NSString *const ApiKey = @"apiKey";
+static NSString *const ApiKey = @"deploymentKey";
 static NSString *const DeploymentSucceeded = @"DeploymentSucceeded";
 static NSString *const LabelKey = @"label";
 static NSString *const PackageKey = @"package";
-static NSString *const PreviousApiKey = @"previousApiKey";
+static NSString *const PreviousApiKey = @"previousDeploymentKey";
 static NSString *const PreviousLabelOrAppVersionKey = @"previousLabelOrAppVersion";
 static NSString *const StatusKey = @"status";
 
