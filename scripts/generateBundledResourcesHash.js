@@ -18,8 +18,8 @@ var path = require("path");
 var getFilesInFolder = require("./getFilesInFolder");
 
 var SPARKS_FOLDER_PREFIX = "CodePush";
-var SPARKS_HASH_FILE_NAME = "SparksHash";
-var SPARKS_HASH_OLD_FILE_NAME = "SparksHash.json";
+var SPARKS_HASH_FILE_NAME = "CodePushHash";
+var SPARKS_HASH_OLD_FILE_NAME = "CodePushHash.json";
 var HASH_ALGORITHM = "sha256";
 
 var resourcesDir = process.argv[2];
