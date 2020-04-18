@@ -2,11 +2,11 @@
 
 static NSString *const AppVersionKey = @"appVersion";
 static NSString *const DeploymentFailed = @"DeploymentFailed";
-static NSString *const ApiKey = @"deploymentKey";
+static NSString *const DeploymentKeyKey = @"deploymentKey";
 static NSString *const DeploymentSucceeded = @"DeploymentSucceeded";
 static NSString *const LabelKey = @"label";
 static NSString *const PackageKey = @"package";
-static NSString *const PreviousApiKey = @"previousDeploymentKey";
+static NSString *const PreviousDeploymentKeyKey = @"previousDeploymentKey";
 static NSString *const PreviousLabelOrAppVersionKey = @"previousLabelOrAppVersion";
 static NSString *const StatusKey = @"status";
 
@@ -20,12 +20,12 @@ static NSString *const StatusKey = @"status";
         return @{ AppVersionKey: appVersion };
     } else if (![previousStatusReportIdentifier isEqualToString:appVersion]) {
         if ([self isStatusReportIdentifierSparksLabel:previousStatusReportIdentifier]) {
-            NSString *previousApiKey = [self getApiKeyFromStatusReportIdentifier:previousStatusReportIdentifier];
+            NSString *previousDeploymentKey = [self getApiKeyFromStatusReportIdentifier:previousStatusReportIdentifier];
             NSString *previousLabel = [self getVersionLabelFromStatusReportIdentifier:previousStatusReportIdentifier];
             [self clearRetryStatusReport];
             return @{
                       AppVersionKey: appVersion,
-                      PreviousApiKey: previousApiKey,
+                      PreviousDeploymentKeyKey: previousDeploymentKey,
                       PreviousLabelOrAppVersionKey: previousLabel
                     };
         } else {
@@ -80,12 +80,12 @@ static NSString *const StatusKey = @"status";
         } else if (![previousStatusReportIdentifier isEqualToString:currentPackageIdentifier]) {
             [self clearRetryStatusReport];
             if ([self isStatusReportIdentifierSparksLabel:previousStatusReportIdentifier]) {
-                NSString *previousApiKey = [self getApiKeyFromStatusReportIdentifier:previousStatusReportIdentifier];
+                NSString *previousDeploymentKey = [self getApiKeyFromStatusReportIdentifier:previousStatusReportIdentifier];
                 NSString *previousLabel = [self getVersionLabelFromStatusReportIdentifier:previousStatusReportIdentifier];
                 return @{
                           PackageKey: currentPackage,
                           StatusKey: DeploymentSucceeded,
-                          PreviousApiKey: previousApiKey,
+                          PreviousDeploymentKeyKey: previousDeploymentKey,
                           PreviousLabelOrAppVersionKey: previousLabel
                         };
             } else {
@@ -152,12 +152,12 @@ static NSString *const StatusKey = @"status";
 
 + (NSString *)getPackageStatusReportIdentifier:(NSDictionary *)package
 {
-    // Because apiKeys can be dynamically switched, we use a
-    // combination of the apiKey and label as the packageIdentifier.
-    NSString *apiKey = [package objectForKey:ApiKey];
+    // Because deploymentKeys can be dynamically switched, we use a
+    // combination of the deploymentKey and label as the packageIdentifier.
+    NSString *deploymentKey = [package objectForKey:DeploymentKeyKey];
     NSString *label = [package objectForKey:LabelKey];
-    if (apiKey && label) {
-        return [[apiKey stringByAppendingString:@":"] stringByAppendingString:label];
+    if (deploymentKey && label) {
+        return [[deploymentKey stringByAppendingString:@":"] stringByAppendingString:label];
     } else {
         return nil;
     }
