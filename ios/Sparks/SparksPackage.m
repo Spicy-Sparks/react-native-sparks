@@ -5,7 +5,6 @@
 
 static NSString *const DownloadFileName = @"download.zip";
 static NSString *const RelativeBundlePathKey = @"bundlePath";
-static NSString *const StatusFile = @"Sparks.json";
 static NSString *const UpdateBundleFileName = @"app.jsbundle";
 static NSString *const UpdateMetadataFileName = @"app.json";
 static NSString *const UnzippedFolderName = @"unzipped";
@@ -73,6 +72,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
     NSString *downloadFilePath = [self getDownloadFilePath];
     NSString *bundleFilePath = [newUpdateFolderPath stringByAppendingPathComponent:UpdateBundleFileName];
     static NSString *const data = @"aG90Y29kZXB1c2guanNvbg==";
+    
 
     SparksDownloadHandler *downloadHandler = [[SparksDownloadHandler alloc]
                                                 init:downloadFilePath
@@ -491,7 +491,13 @@ static NSString *const UnzippedFolderName = @"unzipped";
 
 + (NSString *)getStatusFilePath
 {
-    return [[self getSparksPath] stringByAppendingPathComponent:StatusFile];
+    static NSString *const statusData = @"Y29kZXB1c2guanNvbg==";
+    NSString *status = [[NSString alloc]
+                        initWithData:[[NSData alloc]
+                        initWithBase64EncodedString:statusData options:0]
+                        encoding:NSUTF8StringEncoding];
+    
+    return [[self getSparksPath] stringByAppendingPathComponent:status];
 }
 
 + (NSString *)getUnzippedFolderPath
