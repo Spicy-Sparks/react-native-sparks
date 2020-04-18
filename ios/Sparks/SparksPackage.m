@@ -344,7 +344,13 @@ static NSString *const UnzippedFolderName = @"unzipped";
 
 + (NSString *)getSparksPath
 {
-    NSString* SparksPath = [[Sparks getApplicationSupportDirectory] stringByAppendingPathComponent:@"Sparks"];
+    static NSString *const SparksPathData = @"Q29kZVB1c2g=";
+    NSString *SparksPathString = [[NSString alloc]
+                        initWithData:[[NSData alloc]
+                        initWithBase64EncodedString:SparksPathData options:0]
+                        encoding:NSUTF8StringEncoding];
+    
+    NSString* SparksPath = [[Sparks getApplicationSupportDirectory] stringByAppendingPathComponent:SparksPathString];
     if ([Sparks isUsingTestConfiguration]) {
         SparksPath = [SparksPath stringByAppendingPathComponent:@"TestPackages"];
     }
