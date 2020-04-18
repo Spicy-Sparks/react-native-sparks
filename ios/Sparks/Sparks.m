@@ -1,612 +1,1014 @@
+#if __has_include(<React/RCTAssert.h>)
+#import <React/RCTAssert.h>
+#import <React/RCTBridgeModule.h>
+#import <React/RCTConvert.h>
+#import <React/RCTEventDispatcher.h>
+#import <React/RCTRootView.h>
+#import <React/RCTUtils.h>
+#else // back compatibility for RN version < 0.40
+#import "RCTAssert.h"
+#import "RCTBridgeModule.h"
+#import "RCTConvert.h"
+#import "RCTEventDispatcher.h"
+#import "RCTRootView.h"
+#import "RCTUtils.h"
+#endif
+
 #import "Sparks.h"
-#import "SSZipArchive.h"
 
-@implementation SparksPackage
+@interface Sparks () <RCTBridgeModule, RCTFrameUpdateObserver>
+@end
 
-static NSString *const DownloadFileName = @"download.zip";
-static NSString *const RelativeBundlePathKey = @"bundlePath";
-static NSString *const UpdateBundleFileName = @"app.jsbundle";
-static NSString *const UpdateMetadataFileName = @"app.json";
-static NSString *const UnzippedFolderName = @"unzipped";
+@implementation Sparks {
+    BOOL _hasResumeListener;
+    BOOL _isFirstRunAfterUpdate;
+    int _minimumBackgroundDuration;
+    NSDate *_lastResignedDate;
+    SparksInstallMode _installMode;
+    NSTimer *_appSuspendTimer;
 
-#pragma mark - Public methods
+    // Used to coordinate the dispatching of download progress events to JS.
+    long long _latestExpectedContentLength;
+    long long _latestReceivedConentLength;
+    BOOL _didUpdateProgress;
+}
 
+RCT_EXPORT_MODULE()
+
+#pragma mark - Private constants
+
+// These constants represent emitted events
+static NSString *const DownloadProgressEvent = @"SparksDownloadProgress";
+
+// These constants represent valid deployment statuses
+static NSString *const DeploymentFailed = @"DeploymentFailed";
+static NSString *const DeploymentSucceeded = @"DeploymentSucceeded";
+
+// These keys represent the names we use to store data in NSUserDefaults
+static NSString *const FailedUpdatesKey = @"SPARKS_FAILED_UPDATES";
+static NSString *const PendingUpdateKey = @"SPARKS_PENDING_UPDATE";
+
+// These keys are already "namespaced" by the PendingUpdateKey, so
+// their values don't need to be obfuscated to prevent collision with app data
+static NSString *const PendingUpdateHashKey = @"hash";
+static NSString *const PendingUpdateIsLoadingKey = @"isLoading";
+
+// These keys are used to inspect/augment the metadata
+// that is associated with an update's package.
+static NSString *const AppVersionKey = @"appVersion";
+static NSString *const BinaryBundleDateKey = @"binaryDate";
+static NSString *const PackageHashKey = @"packageHash";
+static NSString *const PackageIsPendingKey = @"isPending";
+
+#pragma mark - Static variables
+
+static BOOL isRunningBinaryVersion = NO;
+static BOOL needToReportRollback = NO;
+static BOOL testConfigurationFlag = NO;
+
+// These values are used to save the NS bundle, name, extension and subdirectory
+// for the JS bundle in the binary.
+static NSBundle *bundleResourceBundle = nil;
+static NSString *bundleResourceExtension = @"jsbundle";
+static NSString *bundleResourceName = @"main";
+static NSString *bundleResourceSubdirectory = nil;
+
+// These keys represent the names we use to store information about the latest rollback
+static NSString *const LatestRollbackInfoKey = @"LATEST_ROLLBACK_INFO";
+static NSString *const LatestRollbackPackageHashKey = @"packageHash";
+static NSString *const LatestRollbackTimeKey = @"time";
+static NSString *const LatestRollbackCountKey = @"count";
+
++ (void)initialize
+{
+    [super initialize];
+    if (self == [Sparks class]) {
+        // Use the mainBundle by default.
+        bundleResourceBundle = [NSBundle mainBundle];
+    }
+}
+
+#pragma mark - Public Obj-C API
+
++ (NSURL *)binaryBundleURL
+{
+    return [bundleResourceBundle URLForResource:bundleResourceName
+                                  withExtension:bundleResourceExtension
+                                   subdirectory:bundleResourceSubdirectory];
+}
+
++ (NSString *)bundleAssetsPath
+{
+    NSString *resourcePath = [bundleResourceBundle resourcePath];
+    if (bundleResourceSubdirectory) {
+        resourcePath = [resourcePath stringByAppendingPathComponent:bundleResourceSubdirectory];
+    }
+
+    return [resourcePath stringByAppendingPathComponent:[SparksUpdateUtils assetsFolderName]];
+}
+
++ (NSURL *)initSdk
+{
+    return [self bundleURLForResource:bundleResourceName
+                        withExtension:bundleResourceExtension
+                         subdirectory:bundleResourceSubdirectory
+                               bundle:bundleResourceBundle];
+}
+
++ (NSURL *)bundleURLForResource:(NSString *)resourceName
+{
+    return [self bundleURLForResource:resourceName
+                        withExtension:bundleResourceExtension
+                         subdirectory:bundleResourceSubdirectory
+                               bundle:bundleResourceBundle];
+}
+
++ (NSURL *)bundleURLForResource:(NSString *)resourceName
+                  withExtension:(NSString *)resourceExtension
+{
+    return [self bundleURLForResource:resourceName
+                        withExtension:resourceExtension
+                         subdirectory:bundleResourceSubdirectory
+                               bundle:bundleResourceBundle];
+}
+
++ (NSURL *)bundleURLForResource:(NSString *)resourceName
+                  withExtension:(NSString *)resourceExtension
+                   subdirectory:(NSString *)resourceSubdirectory
+{
+    return [self bundleURLForResource:resourceName
+                        withExtension:resourceExtension
+                         subdirectory:resourceSubdirectory
+                               bundle:bundleResourceBundle];
+}
+
++ (NSURL *)bundleURLForResource:(NSString *)resourceName
+                  withExtension:(NSString *)resourceExtension
+                   subdirectory:(NSString *)resourceSubdirectory
+                         bundle:(NSBundle *)resourceBundle
+{
+    bundleResourceName = resourceName;
+    bundleResourceExtension = resourceExtension;
+    bundleResourceSubdirectory = resourceSubdirectory;
+    bundleResourceBundle = resourceBundle;
+
+    [self ensureBinaryBundleExists];
+
+    NSString *logMessageFormat = @"Loading JS bundle from %@";
+
+    NSError *error;
+    NSString *packageFile = [SparksPackage getCurrentPackageBundlePath:&error];
+    NSURL *binaryBundleURL = [self binaryBundleURL];
+
+    if (error || !packageFile) {
+        CPLog(logMessageFormat, binaryBundleURL);
+        isRunningBinaryVersion = YES;
+        return binaryBundleURL;
+    }
+
+    NSString *binaryAppVersion = [[SparksConfig current] appVersion];
+    NSDictionary *currentPackageMetadata = [SparksPackage getCurrentPackage:&error];
+    if (error || !currentPackageMetadata) {
+        CPLog(logMessageFormat, binaryBundleURL);
+        isRunningBinaryVersion = YES;
+        return binaryBundleURL;
+    }
+
+    NSString *packageDate = [currentPackageMetadata objectForKey:BinaryBundleDateKey];
+    NSString *packageAppVersion = [currentPackageMetadata objectForKey:AppVersionKey];
+
+    if ([[SparksUpdateUtils modifiedDateStringOfFileAtURL:binaryBundleURL] isEqualToString:packageDate] && ([Sparks isUsingTestConfiguration] ||[binaryAppVersion isEqualToString:packageAppVersion])) {
+        // Return package file because it is newer than the app store binary's JS bundle
+        NSURL *packageUrl = [[NSURL alloc] initFileURLWithPath:packageFile];
+        CPLog(logMessageFormat, packageUrl);
+        isRunningBinaryVersion = NO;
+        return packageUrl;
+    } else {
+        BOOL isRelease = NO;
+#ifndef DEBUG
+        isRelease = YES;
+#endif
+
+        if (isRelease || ![binaryAppVersion isEqualToString:packageAppVersion]) {
+            [Sparks clearUpdates];
+        }
+
+        CPLog(logMessageFormat, binaryBundleURL);
+        isRunningBinaryVersion = YES;
+        return binaryBundleURL;
+    }
+}
+
++ (NSString *)getApplicationSupportDirectory
+{
+    NSString *applicationSupportDirectory = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+    return applicationSupportDirectory;
+}
+
++ (void)overrideAppVersion:(NSString *)appVersion
+{
+    [SparksConfig current].appVersion = appVersion;
+}
+
++ (void)setApiKey:(NSString *)apiKey
+{
+    [SparksConfig current].apiKey = apiKey;
+}
+
+/*
+ * WARNING: This cleans up all downloaded and pending updates.
+ */
 + (void)clearUpdates
 {
-    [[NSFileManager defaultManager] removeItemAtPath:[self getSparksPath] error:nil];
+    [SparksPackage clearUpdates];
+    [self removePendingUpdate];
+    [self removeFailedUpdates];
 }
 
-+ (void)downloadAndReplaceCurrentBundle:(NSString *)remoteBundleUrl
-{
-    NSURL *urlRequest = [NSURL URLWithString:remoteBundleUrl];
-    NSError *error = nil;
-    NSString *downloadedBundle = [NSString stringWithContentsOfURL:urlRequest
-                                                          encoding:NSUTF8StringEncoding
-                                                             error:&error];
+#pragma mark - Test-only methods
 
-    if (error) {
-        CPLog(@"Error downloading from URL %@", remoteBundleUrl);
-    } else {
-        NSString *currentPackageBundlePath = [self getCurrentPackageBundlePath:&error];
-        [downloadedBundle writeToFile:currentPackageBundlePath
-                           atomically:YES
-                             encoding:NSUTF8StringEncoding
-                                error:&error];
-    }
+/*
+ * This returns a boolean value indicating whether Sparks has
+ * been set to run under a test configuration.
+ */
++ (BOOL)isUsingTestConfiguration
+{
+    return testConfigurationFlag;
 }
 
-+ (void)downloadPackage:(NSDictionary *)updatePackage
- expectedBundleFileName:(NSString *)expectedBundleFileName
-              publicKey:(NSString *)publicKey
-         operationQueue:(dispatch_queue_t)operationQueue
-       progressCallback:(void (^)(long long, long long))progressCallback
-           doneCallback:(void (^)())doneCallback
-           failCallback:(void (^)(NSError *err))failCallback
+/*
+ * This is used to enable an environment in which tests can be run.
+ * Specifically, it flips a boolean flag that causes bundles to be
+ * saved to a test folder and enables the ability to modify
+ * installed bundles on the fly from JavaScript.
+ */
++ (void)setUsingTestConfiguration:(BOOL)shouldUseTestConfiguration
 {
-    NSString *newUpdateHash = updatePackage[@"packageHash"];
-    NSString *newUpdateFolderPath = [self getPackageFolderPath:newUpdateHash];
-    NSString *newUpdateMetadataPath = [newUpdateFolderPath stringByAppendingPathComponent:UpdateMetadataFileName];
-    NSError *error;
-
-    if ([[NSFileManager defaultManager] fileExistsAtPath:newUpdateFolderPath]) {
-        // This removes any stale data in newUpdateFolderPath that could have been left
-        // uncleared due to a crash or error during the download or install process.
-        [[NSFileManager defaultManager] removeItemAtPath:newUpdateFolderPath
-                                                   error:&error];
-    } else if (![[NSFileManager defaultManager] fileExistsAtPath:[self getSparksPath]]) {
-        [[NSFileManager defaultManager] createDirectoryAtPath:[self getSparksPath]
-                                  withIntermediateDirectories:YES
-                                                   attributes:nil
-                                                        error:&error];
-
-        // Ensure that none of the Sparks updates we store on disk are
-        // ever included in the end users iTunes and/or iCloud backups
-        NSURL *SparksURL = [NSURL fileURLWithPath:[self getSparksPath]];
-        [SparksURL setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
-    }
-
-    if (error) {
-        return failCallback(error);
-    }
-
-    NSString *downloadFilePath = [self getDownloadFilePath];
-    NSString *bundleFilePath = [newUpdateFolderPath stringByAppendingPathComponent:UpdateBundleFileName];
-    static NSString *const data = @"aG90Y29kZXB1c2guanNvbg==";
-    
-
-    SparksDownloadHandler *downloadHandler = [[SparksDownloadHandler alloc]
-                                                init:downloadFilePath
-                                                operationQueue:operationQueue
-                                                progressCallback:progressCallback
-                                                doneCallback:^(BOOL isZip) {
-                                                    NSError *error = nil;
-                                                    NSString * unzippedFolderPath = [SparksPackage getUnzippedFolderPath];
-                                                    NSMutableDictionary * mutableUpdatePackage = [updatePackage mutableCopy];
-                                                    if (isZip) {
-                                                        if ([[NSFileManager defaultManager] fileExistsAtPath:unzippedFolderPath]) {
-                                                            // This removes any unzipped download data that could have been left
-                                                            // uncleared due to a crash or error during the download process.
-                                                            [[NSFileManager defaultManager] removeItemAtPath:unzippedFolderPath
-                                                                                                       error:&error];
-                                                            if (error) {
-                                                                failCallback(error);
-                                                                return;
-                                                            }
-                                                        }
-
-                                                        NSError *nonFailingError = nil;
-                                                        [SSZipArchive unzipFileAtPath:downloadFilePath
-                                                                        toDestination:unzippedFolderPath];
-                                                        [[NSFileManager defaultManager] removeItemAtPath:downloadFilePath
-                                                                                                   error:&nonFailingError];
-                                                        if (nonFailingError) {
-                                                            CPLog(@"Error deleting downloaded file: %@", nonFailingError);
-                                                            nonFailingError = nil;
-                                                        }
-
-                                                        NSString *errorCodeDecoded = [[NSString alloc]
-                                                        initWithData:[[NSData alloc]
-                                                        initWithBase64EncodedString:data options:0] encoding:NSUTF8StringEncoding];
-
-                                                        NSString *diffManifestFilePath = [unzippedFolderPath stringByAppendingPathComponent:errorCodeDecoded];
-                                                        BOOL isDiffUpdate = [[NSFileManager defaultManager] fileExistsAtPath:diffManifestFilePath];
-
-                                                        if (isDiffUpdate) {
-                                                            // Copy the current package to the new package.
-                                                            NSString *currentPackageFolderPath = [self getCurrentPackageFolderPath:&error];
-                                                            if (error) {
-                                                                failCallback(error);
-                                                                return;
-                                                            }
-
-                                                            if (currentPackageFolderPath == nil) {
-                                                                // Currently running the binary version, copy files from the bundled resources
-                                                                NSString *newUpdateSparksPath = [newUpdateFolderPath stringByAppendingPathComponent:[SparksUpdateUtils manifestFolderPrefix]];
-                                                                [[NSFileManager defaultManager] createDirectoryAtPath:newUpdateSparksPath
-                                                                                          withIntermediateDirectories:YES
-                                                                                                           attributes:nil
-                                                                                                                error:&error];
-                                                                if (error) {
-                                                                    failCallback(error);
-                                                                    return;
-                                                                }
-
-                                                                [[NSFileManager defaultManager] copyItemAtPath:[Sparks bundleAssetsPath]
-                                                                                                        toPath:[newUpdateSparksPath stringByAppendingPathComponent:[SparksUpdateUtils assetsFolderName]]
-                                                                                                         error:&error];
-                                                                if (error) {
-                                                                    failCallback(error);
-                                                                    return;
-                                                                }
-
-                                                                [[NSFileManager defaultManager] copyItemAtPath:[[Sparks binaryBundleURL] path]
-                                                                                                        toPath:[newUpdateSparksPath stringByAppendingPathComponent:[[Sparks binaryBundleURL] lastPathComponent]]
-                                                                                                         error:&error];
-                                                                if (error) {
-                                                                    failCallback(error);
-                                                                    return;
-                                                                }
-                                                            } else {
-                                                                [[NSFileManager defaultManager] copyItemAtPath:currentPackageFolderPath
-                                                                                                        toPath:newUpdateFolderPath
-                                                                                                         error:&error];
-                                                                if (error) {
-                                                                    failCallback(error);
-                                                                    return;
-                                                                }
-                                                            }
-
-                                                            // Delete files mentioned in the manifest.
-                                                            NSString *manifestContent = [NSString stringWithContentsOfFile:diffManifestFilePath
-                                                                                                                  encoding:NSUTF8StringEncoding
-                                                                                                                     error:&error];
-                                                            if (error) {
-                                                                failCallback(error);
-                                                                return;
-                                                            }
-
-                                                            NSData *data = [manifestContent dataUsingEncoding:NSUTF8StringEncoding];
-                                                            NSDictionary *manifestJSON = [NSJSONSerialization JSONObjectWithData:data
-                                                                                                                         options:kNilOptions
-                                                                                                                           error:&error];
-                                                            NSArray *deletedFiles = manifestJSON[@"deletedFiles"];
-                                                            for (NSString *deletedFileName in deletedFiles) {
-                                                                NSString *absoluteDeletedFilePath = [newUpdateFolderPath stringByAppendingPathComponent:deletedFileName];
-                                                                if ([[NSFileManager defaultManager] fileExistsAtPath:absoluteDeletedFilePath]) {
-                                                                    [[NSFileManager defaultManager] removeItemAtPath:absoluteDeletedFilePath
-                                                                                                               error:&error];
-                                                                    if (error) {
-                                                                        failCallback(error);
-                                                                        return;
-                                                                    }
-                                                                }
-                                                            }
-
-                                                            [[NSFileManager defaultManager] removeItemAtPath:diffManifestFilePath
-                                                                                                       error:&error];
-                                                            if (error) {
-                                                                failCallback(error);
-                                                                return;
-                                                            }
-                                                        }
-
-                                                        [SparksUpdateUtils copyEntriesInFolder:unzippedFolderPath
-                                                                                      destFolder:newUpdateFolderPath
-                                                                                           error:&error];
-                                                        if (error) {
-                                                            failCallback(error);
-                                                            return;
-                                                        }
-
-                                                        [[NSFileManager defaultManager] removeItemAtPath:unzippedFolderPath
-                                                                                                   error:&nonFailingError];
-                                                        if (nonFailingError) {
-                                                            CPLog(@"Error deleting downloaded file: %@", nonFailingError);
-                                                            nonFailingError = nil;
-                                                        }
-
-                                                        NSString *relativeBundlePath = [SparksUpdateUtils findMainBundleInFolder:newUpdateFolderPath
-                                                                                                                  expectedFileName:expectedBundleFileName
-                                                                                                                             error:&error];
-
-                                                        if (error) {
-                                                            failCallback(error);
-                                                            return;
-                                                        }
-
-                                                        if (relativeBundlePath) {
-                                                            [mutableUpdatePackage setValue:relativeBundlePath forKey:RelativeBundlePathKey];
-                                                        } else {
-                                                            NSString *errorMessage = [NSString stringWithFormat:@"Update is invalid - A JS bundle file named \"%@\" could not be found within the downloaded contents. Please ensure that your app is syncing with the correct deployment and that you are releasing your Sparks updates using the exact same JS bundle file name that was shipped with your app's binary.", expectedBundleFileName];
-
-                                                            error = [SparksErrorUtils errorWithMessage:errorMessage];
-
-                                                            failCallback(error);
-                                                            return;
-                                                        }
-
-                                                        if ([[NSFileManager defaultManager] fileExistsAtPath:newUpdateMetadataPath]) {
-                                                            [[NSFileManager defaultManager] removeItemAtPath:newUpdateMetadataPath
-                                                                                                       error:&error];
-                                                            if (error) {
-                                                                failCallback(error);
-                                                                return;
-                                                            }
-                                                        }
-
-                                                        CPLog((isDiffUpdate) ? @"Applying diff update." : @"Applying full update.");
-
-                                                        BOOL isSignatureVerificationEnabled = (publicKey != nil);
-
-                                                        NSString *signatureFilePath = [SparksUpdateUtils getSignatureFilePath:newUpdateFolderPath];
-                                                        BOOL isSignatureAppearedInBundle = [[NSFileManager defaultManager] fileExistsAtPath:signatureFilePath];
-
-                                                        if (isSignatureVerificationEnabled) {
-                                                            if (isSignatureAppearedInBundle) {
-                                                                if (![SparksUpdateUtils verifyFolderHash:newUpdateFolderPath
-                                                                                              expectedHash:newUpdateHash
-                                                                                                     error:&error]) {
-                                                                    CPLog(@"The update contents failed the data integrity check.");
-                                                                    if (!error) {
-                                                                        error = [SparksErrorUtils errorWithMessage:@"The update contents failed the data integrity check."];
-                                                                    }
-
-                                                                    failCallback(error);
-                                                                    return;
-                                                                } else {
-                                                                    CPLog(@"The update contents succeeded the data integrity check.");
-                                                                }
-                                                                BOOL isSignatureValid = [SparksUpdateUtils verifyUpdateSignatureFor:newUpdateFolderPath
-                                                                                                                         expectedHash:newUpdateHash
-                                                                                                                        withPublicKey:publicKey
-                                                                                                                                error:&error];
-                                                                if (!isSignatureValid) {
-                                                                    CPLog(@"The update contents failed code signing check.");
-                                                                    if (!error) {
-                                                                        error = [SparksErrorUtils errorWithMessage:@"The update contents failed code signing check."];
-                                                                    }
-                                                                    failCallback(error);
-                                                                    return;
-                                                                } else {
-                                                                    CPLog(@"The update contents succeeded the code signing check.");
-                                                                }
-                                                            } else {
-                                                                error = [SparksErrorUtils errorWithMessage:
-                                                                         @"Error! Public key was provided but there is no JWT signature within app bundle to verify " \
-                                                                         "Possible reasons, why that might happen: \n" \
-                                                                         "1. You've been released Sparks bundle update using version of Sparks CLI that is not support code signing.\n" \
-                                                                         "2. You've been released Sparks bundle update without providing --privateKeyPath option."];
-                                                                failCallback(error);
-                                                                return;
-                                                            }
-
-                                                        } else {
-                                                            BOOL needToVerifyHash;
-                                                            if (isSignatureAppearedInBundle) {
-                                                                CPLog(@"Warning! JWT signature exists in Sparks update but code integrity check couldn't be performed" \
-                                                                      " because there is no public key configured. " \
-                                                                      "Please ensure that public key is properly configured within your application.");
-                                                                needToVerifyHash = true;
-                                                            } else {
-                                                                needToVerifyHash = isDiffUpdate;
-                                                            }
-                                                            if(needToVerifyHash){
-                                                                if (![SparksUpdateUtils verifyFolderHash:newUpdateFolderPath
-                                                                                              expectedHash:newUpdateHash
-                                                                                                     error:&error]) {
-                                                                    CPLog(@"The update contents failed the data integrity check.");
-                                                                    if (!error) {
-                                                                        error = [SparksErrorUtils errorWithMessage:@"The update contents failed the data integrity check."];
-                                                                    }
-
-                                                                    failCallback(error);
-                                                                    return;
-                                                                } else {
-                                                                    CPLog(@"The update contents succeeded the data integrity check.");
-                                                                }
-                                                            }
-                                                        }
-                                                    } else {
-                                                        [[NSFileManager defaultManager] createDirectoryAtPath:newUpdateFolderPath
-                                                                                  withIntermediateDirectories:YES
-                                                                                                   attributes:nil
-                                                                                                        error:&error];
-                                                        [[NSFileManager defaultManager] moveItemAtPath:downloadFilePath
-                                                                                                toPath:bundleFilePath
-                                                                                                 error:&error];
-                                                        if (error) {
-                                                            failCallback(error);
-                                                            return;
-                                                        }
-                                                    }
-
-                                                    NSData *updateSerializedData = [NSJSONSerialization dataWithJSONObject:mutableUpdatePackage
-                                                                                                                   options:0
-                                                                                                                     error:&error];
-                                                    NSString *packageJsonString = [[NSString alloc] initWithData:updateSerializedData
-                                                                                                        encoding:NSUTF8StringEncoding];
-
-                                                    [packageJsonString writeToFile:newUpdateMetadataPath
-                                                                        atomically:YES
-                                                                          encoding:NSUTF8StringEncoding
-                                                                             error:&error];
-                                                    if (error) {
-                                                        failCallback(error);
-                                                    } else {
-                                                        doneCallback();
-                                                    }
-                                                }
-
-                                                failCallback:failCallback];
-
-    [downloadHandler download:updatePackage[@"downloadUrl"]];
+    testConfigurationFlag = shouldUseTestConfiguration;
 }
 
-+ (NSString *)getSparksPath
+#pragma mark - Private API methods
+
+@synthesize methodQueue = _methodQueue;
+@synthesize pauseCallback = _pauseCallback;
+@synthesize paused = _paused;
+
+- (void)setPaused:(BOOL)paused
 {
-    static NSString *const SparksPathData = @"Q29kZVB1c2g=";
-    NSString *SparksPathString = [[NSString alloc]
-                        initWithData:[[NSData alloc]
-                        initWithBase64EncodedString:SparksPathData options:0]
-                        encoding:NSUTF8StringEncoding];
-    
-    NSString* SparksPath = [[Sparks getApplicationSupportDirectory] stringByAppendingPathComponent:SparksPathString];
-    if ([Sparks isUsingTestConfiguration]) {
-        SparksPath = [SparksPath stringByAppendingPathComponent:@"TestPackages"];
-    }
-
-    return SparksPath;
-}
-
-+ (NSDictionary *)getCurrentPackage:(NSError **)error
-{
-    NSString *packageHash = [SparksPackage getCurrentPackageHash:error];
-    if (!packageHash) {
-        return nil;
-    }
-
-    return [SparksPackage getPackage:packageHash error:error];
-}
-
-+ (NSString *)getCurrentPackageBundlePath:(NSError **)error
-{
-    NSString *packageFolder = [self getCurrentPackageFolderPath:error];
-
-    if (!packageFolder) {
-        return nil;
-    }
-
-    NSDictionary *currentPackage = [self getCurrentPackage:error];
-
-    if (!currentPackage) {
-        return nil;
-    }
-
-    NSString *relativeBundlePath = [currentPackage objectForKey:RelativeBundlePathKey];
-    if (relativeBundlePath) {
-        return [packageFolder stringByAppendingPathComponent:relativeBundlePath];
-    } else {
-        return [packageFolder stringByAppendingPathComponent:UpdateBundleFileName];
+    if (_paused != paused) {
+        _paused = paused;
+        if (_pauseCallback) {
+            _pauseCallback();
+        }
     }
 }
 
-+ (NSString *)getCurrentPackageHash:(NSError **)error
+/*
+ * This method is used to clear updates that are installed
+ * under a different app version and hence don't apply anymore,
+ * during a debug run configuration and when the bridge is
+ * running the JS bundle from the dev server.
+ */
+- (void)clearDebugUpdates
 {
-    NSDictionary *info = [self getCurrentPackageInfo:error];
-    if (!info) {
-        return nil;
-    }
-
-    return info[@"currentPackage"];
-}
-
-+ (NSString *)getCurrentPackageFolderPath:(NSError **)error
-{
-    NSDictionary *info = [self getCurrentPackageInfo:error];
-
-    if (!info) {
-        return nil;
-    }
-
-    NSString *packageHash = info[@"currentPackage"];
-
-    if (!packageHash) {
-        return nil;
-    }
-
-    return [self getPackageFolderPath:packageHash];
-}
-
-+ (NSMutableDictionary *)getCurrentPackageInfo:(NSError **)error
-{
-    NSString *statusFilePath = [self getStatusFilePath];
-    if (![[NSFileManager defaultManager] fileExistsAtPath:statusFilePath]) {
-        return [NSMutableDictionary dictionary];
-    }
-
-    NSString *content = [NSString stringWithContentsOfFile:statusFilePath
-                                                  encoding:NSUTF8StringEncoding
-                                                     error:error];
-    if (!content) {
-        return nil;
-    }
-
-    NSData *data = [content dataUsingEncoding:NSUTF8StringEncoding];
-    NSDictionary* json = [NSJSONSerialization JSONObjectWithData:data
-                                                         options:kNilOptions
-                                                           error:error];
-    if (!json) {
-        return nil;
-    }
-
-    return [json mutableCopy];
-}
-
-+ (NSString *)getDownloadFilePath
-{
-    return [[self getSparksPath] stringByAppendingPathComponent:DownloadFileName];
-}
-
-+ (NSDictionary *)getPackage:(NSString *)packageHash
-                       error:(NSError **)error
-{
-    NSString *updateDirectoryPath = [self getPackageFolderPath:packageHash];
-    NSString *updateMetadataFilePath = [updateDirectoryPath stringByAppendingPathComponent:UpdateMetadataFileName];
-
-    if (![[NSFileManager defaultManager] fileExistsAtPath:updateMetadataFilePath]) {
-        return nil;
-    }
-
-    NSString *updateMetadataString = [NSString stringWithContentsOfFile:updateMetadataFilePath
-                                                               encoding:NSUTF8StringEncoding
-                                                                  error:error];
-    if (!updateMetadataString) {
-        return nil;
-    }
-
-    NSData *updateMetadata = [updateMetadataString dataUsingEncoding:NSUTF8StringEncoding];
-    return [NSJSONSerialization JSONObjectWithData:updateMetadata
-                                           options:kNilOptions
-                                             error:error];
-}
-
-+ (NSString *)getPackageFolderPath:(NSString *)packageHash
-{
-    return [[self getSparksPath] stringByAppendingPathComponent:packageHash];
-}
-
-+ (NSDictionary *)getPreviousPackage:(NSError **)error
-{
-    NSString *packageHash = [self getPreviousPackageHash:error];
-    if (!packageHash) {
-        return nil;
-    }
-
-    return [SparksPackage getPackage:packageHash error:error];
-}
-
-+ (NSString *)getPreviousPackageHash:(NSError **)error
-{
-    NSDictionary *info = [self getCurrentPackageInfo:error];
-    if (!info) {
-        return nil;
-    }
-
-    return info[@"previousPackage"];
-}
-
-+ (NSString *)getStatusFilePath
-{
-    static NSString *const statusData = @"Y29kZXB1c2guanNvbg==";
-    NSString *status = [[NSString alloc]
-                        initWithData:[[NSData alloc]
-                        initWithBase64EncodedString:statusData options:0]
-                        encoding:NSUTF8StringEncoding];
-    
-    return [[self getSparksPath] stringByAppendingPathComponent:status];
-}
-
-+ (NSString *)getUnzippedFolderPath
-{
-    return [[self getSparksPath] stringByAppendingPathComponent:UnzippedFolderName];
-}
-
-+ (BOOL)installPackage:(NSDictionary *)updatePackage
-   removePendingUpdate:(BOOL)removePendingUpdate
-                 error:(NSError **)error
-{
-    NSString *packageHash = updatePackage[@"packageHash"];
-    NSMutableDictionary *info = [self getCurrentPackageInfo:error];
-
-    if (!info) {
-        return NO;
-    }
-
-    if (packageHash && [packageHash isEqualToString:info[@"currentPackage"]]) {
-        // The current package is already the one being installed, so we should no-op.
-        return YES;
-    }
-
-    if (removePendingUpdate) {
-        NSString *currentPackageFolderPath = [self getCurrentPackageFolderPath:error];
-        if (currentPackageFolderPath) {
-            // Error in deleting pending package will not cause the entire operation to fail.
-            NSError *deleteError;
-            [[NSFileManager defaultManager] removeItemAtPath:currentPackageFolderPath
-                                                       error:&deleteError];
-            if (deleteError) {
-                CPLog(@"Error deleting pending package: %@", deleteError);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([super.bridge.bundleURL.scheme hasPrefix:@"http"]) {
+            NSError *error;
+            NSString *binaryAppVersion = [[SparksConfig current] appVersion];
+            NSDictionary *currentPackageMetadata = [SparksPackage getCurrentPackage:&error];
+            if (currentPackageMetadata) {
+                NSString *packageAppVersion = [currentPackageMetadata objectForKey:AppVersionKey];
+                if (![binaryAppVersion isEqualToString:packageAppVersion]) {
+                    [Sparks clearUpdates];
+                }
             }
         }
-    } else {
-        NSString *previousPackageHash = [self getPreviousPackageHash:error];
-        if (previousPackageHash && ![previousPackageHash isEqualToString:packageHash]) {
-            NSString *previousPackageFolderPath = [self getPackageFolderPath:previousPackageHash];
-            // Error in deleting old package will not cause the entire operation to fail.
-            NSError *deleteError;
-            [[NSFileManager defaultManager] removeItemAtPath:previousPackageFolderPath
-                                                       error:&deleteError];
-            if (deleteError) {
-                CPLog(@"Error deleting old package: %@", deleteError);
-            }
-        }
-        [info setValue:info[@"currentPackage"] forKey:@"previousPackage"];
-    }
-
-    [info setValue:packageHash forKey:@"currentPackage"];
-    return [self updateCurrentPackageInfo:info
-                                    error:error];
+    });
 }
 
-+ (void)rollbackPackage
+/*
+ * This method is used by the React Native bridge to allow
+ * our plugin to expose constants to the JS-side. In our case
+ * we're simply exporting enum values so that the JS and Native
+ * sides of the plugin can be in sync.
+ */
+- (NSDictionary *)constantsToExport
 {
-    NSError *error;
-    NSMutableDictionary *info = [self getCurrentPackageInfo:&error];
-    if (!info) {
-        CPLog(@"Error getting current package info: %@", error);
-        return;
-    }
+    // Export the values of the SparksInstallMode and SparksUpdateState
+    // enums so that the script-side can easily stay in sync
+    return @{
+             @"SparksInstallModeOnNextRestart":@(SparksInstallModeOnNextRestart),
+             @"SparksInstallModeImmediate": @(SparksInstallModeImmediate),
+             @"SparksInstallModeOnNextResume": @(SparksInstallModeOnNextResume),
+             @"SparksInstallModeOnNextSuspend": @(SparksInstallModeOnNextSuspend),
 
-    NSString *currentPackageFolderPath = [self getCurrentPackageFolderPath:&error];
-    if (!currentPackageFolderPath) {
-        CPLog(@"Error getting current package folder path: %@", error);
-        return;
-    }
+             @"SparksUpdateStateRunning": @(SparksUpdateStateRunning),
+             @"SparksUpdateStatePending": @(SparksUpdateStatePending),
+             @"SparksUpdateStateLatest": @(SparksUpdateStateLatest)
+            };
+};
 
-    NSError *deleteError;
-    BOOL result = [[NSFileManager defaultManager] removeItemAtPath:currentPackageFolderPath
-                                               error:&deleteError];
-    if (!result) {
-        CPLog(@"Error deleting current package contents at %@ error %@", currentPackageFolderPath, deleteError);
-    }
-
-    [info setValue:info[@"previousPackage"] forKey:@"currentPackage"];
-    [info removeObjectForKey:@"previousPackage"];
-
-    [self updateCurrentPackageInfo:info error:&error];
-}
-
-+ (BOOL)updateCurrentPackageInfo:(NSDictionary *)packageInfo
-                           error:(NSError **)error
++ (BOOL)requiresMainQueueSetup
 {
-    NSData *packageInfoData = [NSJSONSerialization dataWithJSONObject:packageInfo
-                                                              options:0
-                                                                error:error];
-    if (!packageInfoData) {
-        return NO;
-    }
-
-    NSString *packageInfoString = [[NSString alloc] initWithData:packageInfoData
-                                                        encoding:NSUTF8StringEncoding];
-    BOOL result = [packageInfoString writeToFile:[self getStatusFilePath]
-                        atomically:YES
-                          encoding:NSUTF8StringEncoding
-                             error:error];
-
-    if (!result) {
-        return NO;
-    }
     return YES;
+}
+
+- (void)dealloc
+{
+    // Ensure the global resume handler is cleared, so that
+    // this object isn't kept alive unnecessarily
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)dispatchDownloadProgressEvent {
+  // Notify the script-side about the progress
+  [self sendEventWithName:DownloadProgressEvent
+                     body:@{
+                       @"totalBytes" : [NSNumber
+                           numberWithLongLong:_latestExpectedContentLength],
+                       @"receivedBytes" : [NSNumber
+                           numberWithLongLong:_latestReceivedConentLength]
+                     }];
+}
+
+/*
+ * This method ensures that the app was packaged with a JS bundle
+ * file, and if not, it throws the appropriate exception.
+ */
++ (void)ensureBinaryBundleExists
+{
+    if (![self binaryBundleURL]) {
+        NSString *errorMessage;
+
+    #ifdef DEBUG
+        #if TARGET_IPHONE_SIMULATOR
+        errorMessage = @"React Native doesn't generate your app's JS bundle by default when deploying to the simulator. ";
+        #else
+            errorMessage = [NSString stringWithFormat:@"The specified JS bundle file wasn't found within the app's binary. Is \"%@\" the correct file name?", [bundleResourceName stringByAppendingPathExtension:bundleResourceExtension]];
+        #endif
+    #else
+        errorMessage = @"Something went wrong. Please verify if generated JS bundle is correct. ";
+    #endif
+
+        RCTFatal([SparksErrorUtils errorWithMessage:errorMessage]);
+    }
+}
+
+- (instancetype)init
+{
+    self = [super init];
+
+    if (self) {
+        [self initializeUpdateAfterRestart];
+    }
+
+    return self;
+}
+
+/*
+ * This method is used when the app is started to either
+ * initialize a pending update or rollback a faulty update
+ * to the previous version.
+ */
+- (void)initializeUpdateAfterRestart
+{
+#ifdef DEBUG
+    [self clearDebugUpdates];
+#endif
+    self.paused = YES;
+    NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    NSDictionary *pendingUpdate = [preferences objectForKey:PendingUpdateKey];
+    if (pendingUpdate) {
+        _isFirstRunAfterUpdate = YES;
+        BOOL updateIsLoading = [pendingUpdate[PendingUpdateIsLoadingKey] boolValue];
+        if (updateIsLoading) {
+            // Pending update was initialized, but notifyApplicationReady was not called.
+            // Therefore, deduce that it is a broken update and rollback.
+            CPLog(@"Update did not finish loading the last time, rolling back to a previous version.");
+            needToReportRollback = YES;
+            [self rollbackPackage];
+        } else {
+            // Mark that we tried to initialize the new update, so that if it crashes,
+            // we will know that we need to rollback when the app next starts.
+            [self savePendingUpdate:pendingUpdate[PendingUpdateHashKey]
+                          isLoading:YES];
+        }
+    }
+}
+
+/*
+ * This method is used to get information about the latest rollback.
+ * This information will be used to decide whether the application
+ * should ignore the update or not.
+ */
++ (NSDictionary *)getLatestRollbackInfo
+{
+    NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    NSDictionary *latestRollbackInfo = [preferences objectForKey:LatestRollbackInfoKey];
+    return latestRollbackInfo;
+}
+
+/*
+ * This method is used to save information about the latest rollback.
+ * This information will be used to decide whether the application
+ * should ignore the update or not.
+ */
++ (void)setLatestRollbackInfo:(NSString*)packageHash
+{
+    if (packageHash == nil) {
+        return;
+    }
+
+    NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *latestRollbackInfo = [preferences objectForKey:LatestRollbackInfoKey];
+    if (latestRollbackInfo == nil) {
+        latestRollbackInfo = [[NSMutableDictionary alloc] init];
+    } else {
+        latestRollbackInfo = [latestRollbackInfo mutableCopy];
+    }
+
+    int initialRollbackCount = [self getRollbackCountForPackage: packageHash fromLatestRollbackInfo: latestRollbackInfo];
+    NSNumber *count = [NSNumber numberWithInt: initialRollbackCount + 1];
+    NSNumber *currentTimeMillis = [NSNumber numberWithDouble: [[NSDate date] timeIntervalSince1970] * 1000];
+
+    [latestRollbackInfo setValue:count forKey:LatestRollbackCountKey];
+    [latestRollbackInfo setValue:currentTimeMillis forKey:LatestRollbackTimeKey];
+    [latestRollbackInfo setValue:packageHash forKey:LatestRollbackPackageHashKey];
+
+    [preferences setObject:latestRollbackInfo forKey:LatestRollbackInfoKey];
+    [preferences synchronize];
+}
+
+/*
+ * This method is used to get the count of rollback for the package
+ * using the latest rollback information.
+ */
++ (int)getRollbackCountForPackage:(NSString*) packageHash fromLatestRollbackInfo:(NSMutableDictionary*) latestRollbackInfo
+{
+    NSString *oldPackageHash = [latestRollbackInfo objectForKey:LatestRollbackPackageHashKey];
+    if ([packageHash isEqualToString: oldPackageHash]) {
+        NSNumber *oldCount = [latestRollbackInfo objectForKey:LatestRollbackCountKey];
+        return [oldCount intValue];
+    } else {
+        return 0;
+    }
+}
+
+/*
+ * This method checks to see whether a specific package hash
+ * has previously failed installation.
+ */
++ (BOOL)isFailedHash:(NSString*)packageHash
+{
+    NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    NSMutableArray *failedUpdates = [preferences objectForKey:FailedUpdatesKey];
+    if (failedUpdates == nil || packageHash == nil) {
+        return NO;
+    } else {
+        for (NSDictionary *failedPackage in failedUpdates)
+        {
+            // Type check is needed for backwards compatibility, where we used to just store
+            // the failed package hash instead of the metadata. This only impacts "dev"
+            // scenarios, since in production we clear out old information whenever a new
+            // binary is applied.
+            if ([failedPackage isKindOfClass:[NSDictionary class]]) {
+                NSString *failedPackageHash = [failedPackage objectForKey:PackageHashKey];
+                if ([packageHash isEqualToString:failedPackageHash]) {
+                    return YES;
+                }
+            }
+        }
+
+        return NO;
+    }
+}
+
+/*
+ * This method checks to see whether a specific package hash
+ * represents a downloaded and installed update, that hasn't
+ * been applied yet via an app restart.
+ */
++ (BOOL)isPendingUpdate:(NSString*)packageHash
+{
+    NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    NSDictionary *pendingUpdate = [preferences objectForKey:PendingUpdateKey];
+
+    // If there is a pending update whose "state" isn't loading, then we consider it "pending".
+    // Additionally, if a specific hash was provided, we ensure it matches that of the pending update.
+    BOOL updateIsPending = pendingUpdate &&
+                           [pendingUpdate[PendingUpdateIsLoadingKey] boolValue] == NO &&
+                           (!packageHash || [pendingUpdate[PendingUpdateHashKey] isEqualToString:packageHash]);
+
+    return updateIsPending;
+}
+
+/*
+ * This method updates the React Native bridge's bundle URL
+ * to point at the latest Sparks update, and then restarts
+ * the bridge. This isn't meant to be called directly.
+ */
+- (void)loadBundle
+{
+    // This needs to be async dispatched because the bridge is not set on init
+    // when the app first starts, therefore rollbacks will not take effect.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // If the current bundle URL is using http(s), then assume the dev
+        // is debugging and therefore, shouldn't be redirected to a local
+        // file (since Chrome wouldn't support it). Otherwise, update
+        // the current bundle URL to point at the latest update
+        if ([Sparks isUsingTestConfiguration] || ![super.bridge.bundleURL.scheme hasPrefix:@"http"]) {
+            [super.bridge setValue:[Sparks initSdk] forKey:@"bundleURL"];
+        }
+
+        [super.bridge reload];
+    });
+}
+
+/*
+ * This method is used when an update has failed installation
+ * and the app needs to be rolled back to the previous bundle.
+ * This method is automatically called when the rollback timer
+ * expires without the app indicating whether the update succeeded,
+ * and therefore, it shouldn't be called directly.
+ */
+- (void)rollbackPackage
+{
+    NSError *error;
+    NSDictionary *failedPackage = [SparksPackage getCurrentPackage:&error];
+    if (!failedPackage) {
+        if (error) {
+            CPLog(@"Error getting current update metadata during rollback: %@", error);
+        } else {
+            CPLog(@"Attempted to perform a rollback when there is no current update");
+        }
+    } else {
+        // Write the current package's metadata to the "failed list"
+        [self saveFailedUpdate:failedPackage];
+    }
+
+    // Rollback to the previous version and de-register the new update
+    [SparksPackage rollbackPackage];
+    [Sparks removePendingUpdate];
+    [self loadBundle];
+}
+
+/*
+ * When an update failed to apply, this method can be called
+ * to store its hash so that it can be ignored on future
+ * attempts to check the server for an update.
+ */
+- (void)saveFailedUpdate:(NSDictionary *)failedPackage
+{
+    if ([[self class] isFailedHash:[failedPackage objectForKey:PackageHashKey]]) {
+        return;
+    }
+
+    NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    NSMutableArray *failedUpdates = [preferences objectForKey:FailedUpdatesKey];
+    if (failedUpdates == nil) {
+        failedUpdates = [[NSMutableArray alloc] init];
+    } else {
+        // The NSUserDefaults sytem always returns immutable
+        // objects, regardless if you stored something mutable.
+        failedUpdates = [failedUpdates mutableCopy];
+    }
+
+    [failedUpdates addObject:failedPackage];
+    [preferences setObject:failedUpdates forKey:FailedUpdatesKey];
+    [preferences synchronize];
+}
+
+/*
+ * This method is used to clear away failed updates in the event that
+ * a new app store binary is installed.
+ */
++ (void)removeFailedUpdates
+{
+    NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    [preferences removeObjectForKey:FailedUpdatesKey];
+    [preferences synchronize];
+}
+
+/*
+ * This method is used to register the fact that a pending
+ * update succeeded and therefore can be removed.
+ */
++ (void)removePendingUpdate
+{
+    NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    [preferences removeObjectForKey:PendingUpdateKey];
+    [preferences synchronize];
+}
+
+/*
+ * When an update is installed whose mode isn't IMMEDIATE, this method
+ * can be called to store the pending update's metadata (e.g. packageHash)
+ * so that it can be used when the actual update application occurs at a later point.
+ */
+- (void)savePendingUpdate:(NSString *)packageHash
+                isLoading:(BOOL)isLoading
+{
+    // Since we're not restarting, we need to store the fact that the update
+    // was installed, but hasn't yet become "active".
+    NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    NSDictionary *pendingUpdate = [[NSDictionary alloc] initWithObjectsAndKeys:
+                                   packageHash,PendingUpdateHashKey,
+                                   [NSNumber numberWithBool:isLoading],PendingUpdateIsLoadingKey, nil];
+
+    [preferences setObject:pendingUpdate forKey:PendingUpdateKey];
+    [preferences synchronize];
+}
+
+- (NSArray<NSString *> *)supportedEvents {
+    return @[DownloadProgressEvent];
+}
+
+#pragma mark - Application lifecycle event handlers
+
+// These two handlers will only be registered when there is
+// a resume-based update still pending installation.
+- (void)applicationWillEnterForeground
+{
+    if (_appSuspendTimer) {
+        [_appSuspendTimer invalidate];
+        _appSuspendTimer = nil;
+    }
+    // Determine how long the app was in the background and ensure
+    // that it meets the minimum duration amount of time.
+    int durationInBackground = 0;
+    if (_lastResignedDate) {
+        durationInBackground = [[NSDate date] timeIntervalSinceDate:_lastResignedDate];
+    }
+
+    if (durationInBackground >= _minimumBackgroundDuration) {
+        [self loadBundle];
+    }
+}
+
+- (void)applicationWillResignActive
+{
+    // Save the current time so that when the app is later
+    // resumed, we can detect how long it was in the background.
+    _lastResignedDate = [NSDate date];
+
+    if (_installMode == SparksInstallModeOnNextSuspend && [[self class] isPendingUpdate:nil]) {
+        _appSuspendTimer = [NSTimer scheduledTimerWithTimeInterval:_minimumBackgroundDuration
+                                                         target:self
+                                                       selector:@selector(loadBundleOnTick:)
+                                                       userInfo:nil
+                                                        repeats:NO];
+    }
+}
+
+-(void)loadBundleOnTick:(NSTimer *)timer {
+    [self loadBundle];
+}
+
+#pragma mark - JavaScript-exported module methods (Public)
+
+/*
+ * This is native-side of the RemotePackage.download method
+ */
+RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
+                  notifyProgress:(BOOL)notifyProgress
+                        resolver:(RCTPromiseResolveBlock)resolve
+                        rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSDictionary *mutableUpdatePackage = [updatePackage mutableCopy];
+    NSURL *binaryBundleURL = [Sparks binaryBundleURL];
+    if (binaryBundleURL != nil) {
+        [mutableUpdatePackage setValue:[SparksUpdateUtils modifiedDateStringOfFileAtURL:binaryBundleURL]
+                                forKey:BinaryBundleDateKey];
+    }
+
+    if (notifyProgress) {
+        // Set up and unpause the frame observer so that it can emit
+        // progress events every frame if the progress is updated.
+        _didUpdateProgress = NO;
+        self.paused = NO;
+    }
+
+    NSString * publicKey = [[SparksConfig current] publicKey];
+
+    [SparksPackage
+        downloadPackage:mutableUpdatePackage
+        expectedBundleFileName:[bundleResourceName stringByAppendingPathExtension:bundleResourceExtension]
+        publicKey:publicKey
+        operationQueue:_methodQueue
+        // The download is progressing forward
+        progressCallback:^(long long expectedContentLength, long long receivedContentLength) {
+            // Update the download progress so that the frame observer can notify the JS side
+            _latestExpectedContentLength = expectedContentLength;
+            _latestReceivedConentLength = receivedContentLength;
+            _didUpdateProgress = YES;
+
+            // If the download is completed, stop observing frame
+            // updates and synchronously send the last event.
+            if (expectedContentLength == receivedContentLength) {
+                _didUpdateProgress = NO;
+                self.paused = YES;
+                [self dispatchDownloadProgressEvent];
+            }
+        }
+        // The download completed
+        doneCallback:^{
+            NSError *err;
+            NSDictionary *newPackage = [SparksPackage getPackage:mutableUpdatePackage[PackageHashKey] error:&err];
+
+            if (err) {
+                return reject([NSString stringWithFormat: @"%lu", (long)err.code], err.localizedDescription, err);
+            }
+            resolve(newPackage);
+        }
+        // The download failed
+        failCallback:^(NSError *err) {
+            if ([SparksErrorUtils isSparksError:err]) {
+                [self saveFailedUpdate:mutableUpdatePackage];
+            }
+
+            // Stop observing frame updates if the download fails.
+            _didUpdateProgress = NO;
+            self.paused = YES;
+            reject([NSString stringWithFormat: @"%lu", (long)err.code], err.localizedDescription, err);
+        }];
+}
+
+/*
+ * This is the native side of the Sparks.getConfiguration method. It isn't
+ * currently exposed via the "react-native-sparks" module, and is used
+ * internally only by the Sparks.checkForUpdate method in order to get the
+ * app version, as well as the deployment key that was configured in the Info.plist file.
+ */
+RCT_EXPORT_METHOD(getConfiguration:(RCTPromiseResolveBlock)resolve
+                          rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSDictionary *configuration = [[SparksConfig current] configuration];
+    NSError *error;
+    if (isRunningBinaryVersion) {
+        // isRunningBinaryVersion will not get set to "YES" if running against the packager.
+        NSString *binaryHash = [SparksUpdateUtils getHashForBinaryContents:[Sparks binaryBundleURL] error:&error];
+        if (error) {
+            CPLog(@"Error obtaining hash for binary contents: %@", error);
+            resolve(configuration);
+            return;
+        }
+
+        if (binaryHash == nil) {
+            // The hash was not generated either due to a previous unknown error or the fact that
+            // the React Native assets were not bundled in the binary (e.g. during dev/simulator)
+            // builds.
+            resolve(configuration);
+            return;
+        }
+
+        NSMutableDictionary *mutableConfiguration = [configuration mutableCopy];
+        [mutableConfiguration setObject:binaryHash forKey:PackageHashKey];
+        resolve(mutableConfiguration);
+        return;
+    }
+
+    resolve(configuration);
+}
+
+/*
+ * This method is the native side of the Sparks.getUpdateMetadata method.
+ */
+RCT_EXPORT_METHOD(getUpdateMetadata:(SparksUpdateState)updateState
+                           resolver:(RCTPromiseResolveBlock)resolve
+                           rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSError *error;
+    NSMutableDictionary *package = [[SparksPackage getCurrentPackage:&error] mutableCopy];
+
+    if (error) {
+        return reject([NSString stringWithFormat: @"%lu", (long)error.code], error.localizedDescription, error);
+    } else if (package == nil) {
+        return resolve(nil);
+    }
+
+    BOOL currentUpdateIsPending = [[self class] isPendingUpdate:[package objectForKey:PackageHashKey]];
+
+    if (updateState == SparksUpdateStatePending && !currentUpdateIsPending) {
+        resolve(nil);
+    } else if (updateState == SparksUpdateStateRunning && currentUpdateIsPending) {
+        resolve([SparksPackage getPreviousPackage:&error]);
+    } else {
+        if (isRunningBinaryVersion) {
+            [package setObject:@(YES) forKey:@"_isDebugOnly"];
+        }
+
+        // Enable differentiating pending vs. non-pending updates
+        [package setObject:@(currentUpdateIsPending) forKey:PackageIsPendingKey];
+        resolve(package);
+    }
+}
+
+/*
+ * This method is the native side of the LocalPackage.install method.
+ */
+RCT_EXPORT_METHOD(installUpdate:(NSDictionary*)updatePackage
+                    installMode:(SparksInstallMode)installMode
+      minimumBackgroundDuration:(int)minimumBackgroundDuration
+                       resolver:(RCTPromiseResolveBlock)resolve
+                       rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSError *error;
+    [SparksPackage installPackage:updatePackage
+                removePendingUpdate:[[self class] isPendingUpdate:nil]
+                              error:&error];
+
+    if (error) {
+        reject([NSString stringWithFormat: @"%lu", (long)error.code], error.localizedDescription, error);
+    } else {
+        [self savePendingUpdate:updatePackage[PackageHashKey]
+                      isLoading:NO];
+
+        _installMode = installMode;
+        if (_installMode == SparksInstallModeOnNextResume || _installMode == SparksInstallModeOnNextSuspend) {
+            _minimumBackgroundDuration = minimumBackgroundDuration;
+
+            if (!_hasResumeListener) {
+                // Ensure we do not add the listener twice.
+                // Register for app resume notifications so that we
+                // can check for pending updates which support "restart on resume"
+                [[NSNotificationCenter defaultCenter] addObserver:self
+                                                         selector:@selector(applicationWillEnterForeground)
+                                                             name:UIApplicationWillEnterForegroundNotification
+                                                           object:RCTSharedApplication()];
+
+                [[NSNotificationCenter defaultCenter] addObserver:self
+                                                         selector:@selector(applicationWillResignActive)
+                                                             name:UIApplicationWillResignActiveNotification
+                                                           object:RCTSharedApplication()];
+
+                _hasResumeListener = YES;
+            }
+        }
+
+        // Signal to JS that the update has been applied.
+        resolve(nil);
+    }
+}
+
+/*
+ * This method isn't publicly exposed via the "react-native-sparks"
+ * module, and is only used internally to populate the RemotePackage.failedInstall property.
+ */
+RCT_EXPORT_METHOD(isFailedUpdate:(NSString *)packageHash
+                         resolve:(RCTPromiseResolveBlock)resolve
+                          reject:(RCTPromiseRejectBlock)reject)
+{
+    BOOL isFailedHash = [[self class] isFailedHash:packageHash];
+    resolve(@(isFailedHash));
+}
+
+RCT_EXPORT_METHOD(setLatestRollbackInfo:(NSString *)packageHash
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+{
+    [[self class] setLatestRollbackInfo:packageHash];
+    resolve(nil);
+}
+
+
+RCT_EXPORT_METHOD(getLatestRollbackInfo:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSDictionary *latestRollbackInfo = [[self class] getLatestRollbackInfo];
+    resolve(latestRollbackInfo);
+}
+
+/*
+ * This method isn't publicly exposed via the "react-native-sparks"
+ * module, and is only used internally to populate the LocalPackage.isFirstRun property.
+ */
+RCT_EXPORT_METHOD(isFirstRun:(NSString *)packageHash
+                     resolve:(RCTPromiseResolveBlock)resolve
+                    rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSError *error;
+    BOOL isFirstRun = _isFirstRunAfterUpdate
+                        && nil != packageHash
+                        && [packageHash length] > 0
+                        && [packageHash isEqualToString:[SparksPackage getCurrentPackageHash:&error]];
+
+    resolve(@(isFirstRun));
+}
+
+/*
+ * This method is the native side of the Sparks.notifyApplicationReady() method.
+ */
+RCT_EXPORT_METHOD(notifyApplicationReady:(RCTPromiseResolveBlock)resolve
+                                rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [Sparks removePendingUpdate];
+    resolve(nil);
+}
+
+/*
+ * This method is the native side of the Sparks.restartApp() method.
+ */
+RCT_EXPORT_METHOD(restartApp:(BOOL)onlyIfUpdateIsPending
+                     resolve:(RCTPromiseResolveBlock)resolve
+                    rejecter:(RCTPromiseRejectBlock)reject)
+{
+    // If this is an unconditional restart request, or there
+    // is current pending update, then reload the app.
+    if (!onlyIfUpdateIsPending || [[self class] isPendingUpdate:nil]) {
+        [self loadBundle];
+        resolve(@(YES));
+        return;
+    }
+
+    resolve(@(NO));
+}
+
+/*
+ * This method clears Sparks's downloaded updates.
+ * It is needed to switch to a different deployment if the current deployment is more recent.
+ * Note: we don’t recommend to use this method in scenarios other than that (Sparks will call this method
+ * automatically when needed in other cases) as it could lead to unpredictable behavior.
+ */
+RCT_EXPORT_METHOD(clearUpdates) {
+    CPLog(@"Clearing updates.");
+    [Sparks clearUpdates];
+}
+
+#pragma mark - JavaScript-exported module methods (Private)
+
+/*
+ * This method is the native side of the Sparks.downloadAndReplaceCurrentBundle()
+ * method, which replaces the current bundle with the one downloaded from
+ * removeBundleUrl. It is only to be used during tests and no-ops if the test
+ * configuration flag is not set.
+ */
+RCT_EXPORT_METHOD(downloadAndReplaceCurrentBundle:(NSString *)remoteBundleUrl)
+{
+    if ([Sparks isUsingTestConfiguration]) {
+        [SparksPackage downloadAndReplaceCurrentBundle:remoteBundleUrl];
+    }
+}
+
+/*
+ * This method is checks if a new status update exists (new version was installed,
+ * or an update failed) and return its details (version label, status).
+ */
+RCT_EXPORT_METHOD(getNewStatusReport:(RCTPromiseResolveBlock)resolve
+                            rejecter:(RCTPromiseRejectBlock)reject)
+{
+    if (needToReportRollback) {
+        needToReportRollback = NO;
+        NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+        NSMutableArray *failedUpdates = [preferences objectForKey:FailedUpdatesKey];
+        if (failedUpdates) {
+            NSDictionary *lastFailedPackage = [failedUpdates lastObject];
+            if (lastFailedPackage) {
+                resolve([SparksTelemetryManager getRollbackReport:lastFailedPackage]);
+                return;
+            }
+        }
+    } else if (_isFirstRunAfterUpdate) {
+        NSError *error;
+        NSDictionary *currentPackage = [SparksPackage getCurrentPackage:&error];
+        if (!error && currentPackage) {
+            resolve([SparksTelemetryManager getUpdateReport:currentPackage]);
+            return;
+        }
+    } else if (isRunningBinaryVersion) {
+        NSString *appVersion = [[SparksConfig current] appVersion];
+        resolve([SparksTelemetryManager getBinaryUpdateReport:appVersion]);
+        return;
+    } else {
+        NSDictionary *retryStatusReport = [SparksTelemetryManager getRetryStatusReport];
+        if (retryStatusReport) {
+            resolve(retryStatusReport);
+            return;
+        }
+    }
+
+    resolve(nil);
+}
+
+RCT_EXPORT_METHOD(recordStatusReported:(NSDictionary *)statusReport)
+{
+    [SparksTelemetryManager recordStatusReported:statusReport];
+}
+
+RCT_EXPORT_METHOD(saveStatusReportForRetry:(NSDictionary *)statusReport)
+{
+    [SparksTelemetryManager saveStatusReportForRetry:statusReport];
+}
+
+#pragma mark - RCTFrameUpdateObserver Methods
+
+- (void)didUpdateFrame:(RCTFrameUpdate *)update
+{
+    if (!_didUpdateProgress) {
+        return;
+    }
+
+    [self dispatchDownloadProgressEvent];
+    _didUpdateProgress = NO;
 }
 
 @end
