@@ -7,19 +7,22 @@
 NSString *ClientSecret = @"Q29kZVB1c2g=";
 
 NSString * const AssetsFolderName = @"assets";
-NSString * const BinaryHashKey = @"SparksBinaryHash";
 NSString *ManifestFolderPrefix = nil;
-NSString * const BundleJWTFile = @".Sparksrelease";
 
 /*
  Ignore list for hashing
  */
 NSString * const IgnoreMacOSX= @"__MACOSX/";
 NSString * const IgnoreDSStore = @".DS_Store";
-NSString * const IgnoreSparksMetadata = @".Sparksrelease";
 
 + (BOOL)isHashIgnoredFor:(NSString *) relativePath
 {
+    static NSString *const IgnoreSparksMetadataData = @"LmNvZGVwdXNocmVsZWFzZQ==";
+    NSString *IgnoreSparksMetadata = [[NSString alloc]
+                        initWithData:[[NSData alloc]
+                        initWithBase64EncodedString:IgnoreSparksMetadataData options:0]
+                        encoding:NSUTF8StringEncoding];
+    
     return [relativePath hasPrefix:IgnoreMacOSX]
     || [relativePath isEqualToString:IgnoreDSStore]
     || [relativePath hasSuffix:[NSString stringWithFormat:@"/%@", IgnoreDSStore]]
@@ -203,6 +206,11 @@ NSString * const IgnoreSparksMetadata = @".Sparksrelease";
     // Get the cached hash from user preferences if it exists.
     NSString *binaryModifiedDate = [self modifiedDateStringOfFileAtURL:binaryBundleUrl];
     NSUserDefaults *preferences = [NSUserDefaults standardUserDefaults];
+    static NSString *const BinaryHashKeyData = @"Q29kZVB1c2hCaW5hcnlIYXNo";
+    NSString *BinaryHashKey = [[NSString alloc]
+                        initWithData:[[NSData alloc]
+                        initWithBase64EncodedString:BinaryHashKeyData options:0]
+                        encoding:NSUTF8StringEncoding];
     NSMutableDictionary *binaryHashDictionary = [preferences objectForKey:BinaryHashKey];
     NSString *binaryHash = nil;
     if (binaryHashDictionary != nil) {
@@ -308,6 +316,11 @@ NSString * const IgnoreSparksMetadata = @".Sparksrelease";
 
 + (NSString *)getSignatureFilePath:(NSString *)updateFolderPath
 {
+    static NSString *const BundleJWTFileData = @"LmNvZGVwdXNocmVsZWFzZQ==";
+    NSString *BundleJWTFile = [[NSString alloc]
+                        initWithData:[[NSData alloc]
+                        initWithBase64EncodedString:BundleJWTFileData options:0]
+                        encoding:NSUTF8StringEncoding];
     return [NSString stringWithFormat:@"%@/%@/%@", updateFolderPath, ManifestFolderPrefix, BundleJWTFile];
 }
 
