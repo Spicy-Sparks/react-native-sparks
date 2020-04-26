@@ -5,52 +5,45 @@
       "/Users/marco/eSound"
     ]
   ],
-  "_from": "react-native-sparks@1.0.0",
+  "_from": "git+https://github.com/marf/react-native-sparks.git",
   "_id": "react-native-sparks@1.0.0",
   "_inBundle": false,
-  "_integrity": "sha512-CjAAQg0/RnZQaU1mzs3dMEzbiNTglwpXI6UrJKbsw3+Y1PAdmtqkscWAFyphFc80acMZzaYxxEzMQSwcmIOECQ==",
+  "_integrity": "",
   "_location": "/react-native-sparks",
   "_phantomChildren": {
-    "bplist-creator": "0.0.7",
-    "bplist-parser": "0.1.1",
+    "@types/color-name": "1.1.1",
     "cli-width": "2.2.0",
-    "code-point-at": "1.1.0",
     "escape-string-regexp": "1.0.5",
-    "exit-hook": "1.1.1",
-    "extend": "3.0.2",
-    "has-ansi": "2.0.0",
+    "external-editor": "3.1.0",
+    "fs.realpath": "1.0.0",
     "inflight": "1.0.6",
     "inherits": "2.0.4",
+    "is-promise": "2.1.0",
     "lodash": "4.17.15",
     "minimatch": "3.0.4",
-    "number-is-nan": "1.0.1",
-    "object-assign": "4.1.1",
     "once": "1.4.0",
-    "os-tmpdir": "1.0.2",
     "path-is-absolute": "1.0.1",
-    "pegjs": "0.10.0",
-    "pinkie-promise": "2.0.1",
-    "run-async": "2.3.0",
-    "rx": "4.1.0",
-    "spawn-sync": "1.0.15",
+    "rxjs": "6.5.4",
+    "signal-exit": "3.0.2",
+    "simple-plist": "1.1.0",
+    "supports-color": "7.1.0",
     "through": "2.3.8",
-    "xmldom": "0.1.27"
+    "uuid": "3.4.0"
   },
   "_requested": {
-    "type": "version",
-    "registry": true,
-    "raw": "react-native-sparks@6.0.0",
-    "name": "react-native-sparks",
-    "escapedName": "react-native-sparks",
-    "rawSpec": "1.0.0",
-    "saveSpec": null,
-    "fetchSpec": "1.0.0"
+    "type": "git",
+    "raw": "https://github.com/marf/react-native-sparks",
+    "rawSpec": "https://github.com/marf/react-native-sparks",
+    "saveSpec": "git+https://github.com/marf/react-native-sparks.git",
+    "fetchSpec": "https://github.com/marf/react-native-sparks.git",
+    "gitCommittish": null
   },
   "_requiredBy": [
+    "#USER",
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/react-native-sparks/-/react-native-sparks-1.0.0.tgz",
-  "_spec": "1.0.0",
+  "_resolved": "git+https://github.com/marf/react-native-sparks.git#6f4fb8f49293a3d714e856e3abde21cb1c114ec9",
+  "_spec": "https://github.com/marf/react-native-sparks",
   "_where": "/Users/marco/eSound",
   "author": {
     "name": "Spicy Sparks"
@@ -58,6 +51,7 @@
   "bugs": {
     "url": "https://github.com/marf/react-native-sparks/issues"
   },
+  "bundleDependencies": false,
   "dependencies": {
     "code-push": "^3.1.0",
     "glob": "^7.1.6",
@@ -67,21 +61,27 @@
     "semver": "^7.2.1",
     "xcode": "2.1.0"
   },
+  "deprecated": false,
   "description": "React Native Plugin for Spicy Sparks SDK",
   "devDependencies": {
+    "@types/assert": "^1.4.3",
+    "@types/mkdirp": "^1.0.0",
+    "@types/mocha": "^7.0.2",
+    "@types/node": "^13.11.0",
+    "@types/q": "^1.5.2",
     "archiver": "latest",
     "body-parser": "latest",
     "sparks-plugin-testing-framework": "file:./sparks-plugin-testing-framework",
     "del": "latest",
     "express": "latest",
-    "gulp-insert": "latest",
-    "gulp-tslint": "latest",
-    "gulp-typescript": "^5.0.1",
     "mkdirp": "latest",
+    "mocha": "^7.1.1",
     "q": "^1.5.1",
     "run-sequence": "latest",
-    "tslint": "^5.18.0",
-    "typescript": "^2.9.2"
+    "shx": "^0.3.2",
+    "slash": "^3.0.0",
+    "tslint": "^6.1.1",
+    "typescript": "^3.8.3"
   },
   "homepage": "https://spicysparks.com",
   "keywords": [
