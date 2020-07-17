@@ -636,7 +636,7 @@ static NSString *const LatestRollbackCountKey = @"count";
         durationInBackground = [[NSDate date] timeIntervalSinceDate:_lastResignedDate];
     }
 
-    if (_installMode == CodePushInstallModeOnNextSuspend) {
+    if (_installMode == SparksInstallModeOnNextSuspend) {
         // We shouldn't use loadBundle in this case, because _appSuspendTimer will call loadBundleOnTick.
         // We should cancel timer for _appSuspendTimer because otherwise, we would call loadBundle two times.
         if (durationInBackground < _minimumBackgroundDuration) {
