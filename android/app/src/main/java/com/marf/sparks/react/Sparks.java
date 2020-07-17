@@ -205,7 +205,8 @@ public class Sparks implements ReactPackage {
             String SparksApkBuildTime = this.mContext.getResources().getString(SparksApkBuildTimeId).replaceAll("\"","");
             return Long.parseLong(SparksApkBuildTime);
         } catch (Exception e) {
-            throw new SparksUnknownException("Error in getting binary resources modified time", e);
+            return 0;
+            //throw new SparksUnknownException("Error in getting binary resources modified time", e);
         }
     }
 
