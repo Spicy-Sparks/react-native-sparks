@@ -52,9 +52,9 @@ module.exports = (NativeSparks) => {
       await NativeSparks.installUpdate(localPackageCopy, installMode, minimumBackgroundDuration);
       updateInstalledCallback && updateInstalledCallback();
       if (installMode == NativeSparks.SparksInstallModeImmediate) {
-        RestartManager.restartApp(false);
+        NativeSparks.restartApp(false);
       } else {
-        RestartManager.clearPendingRestart();
+        NativeSparks.clearPendingRestart();
         localPackage.isPending = true;
       }
     },
