@@ -58,8 +58,8 @@
     "hoist-non-react-statics": "^3.3.2",
     "inquirer": "^7.3.3",
     "plist": "3.0.1",
-    "semver": "^7.2.1",
-    "xcode": "2.1.0"
+    "semver": "^7.3.2",
+    "xcode": "3.0.1"
   },
   "deprecated": false,
   "description": "React Native Plugin for Spicy Sparks SDK",
@@ -71,7 +71,7 @@
     "@types/q": "^1.5.4",
     "archiver": "latest",
     "body-parser": "latest",
-    "sparks-plugin-testing-framework": "file:./sparks-plugin-testing-framework",
+    "code-push-plugin-testing-framework": "file:./code-push-plugin-testing-framework",
     "del": "latest",
     "express": "latest",
     "mkdirp": "latest",
