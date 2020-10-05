@@ -2,7 +2,6 @@ import { AcquisitionManager as Sdk } from "code-push/script/acquisition-sdk";
 import { Alert } from "./AlertAdapter";
 import requestFetchAdapter from "./request-fetch-adapter";
 import { AppState, Platform } from "react-native";
-import RestartManager from "./RestartManager";
 import log from "./logging";
 import hoistStatics from 'hoist-non-react-statics';
 
@@ -267,6 +266,10 @@ function setUpTestDependencies(testSdk, providedTestConfig, testNativeBridge) {
   if (testSdk) module.exports.AcquisitionSdk = testSdk;
   if (providedTestConfig) testConfig = providedTestConfig;
   if (testNativeBridge) NativeSparks = testNativeBridge;
+}
+
+async function restartApp(onlyIfUpdateIsPending = false) {
+  NativeSparks.restartApp(onlyIfUpdateIsPending);
 }
 
 // This function allows only one syncInternal operation to proceed at any given time.
@@ -563,11 +566,11 @@ if (NativeSparks) {
     log,
     notifyAppReady: notifyApplicationReady,
     notifyApplicationReady,
-    restartApp: RestartManager.restartApp,
+    restartApp,
     setUpTestDependencies,
     sync,
-    disallowRestart: RestartManager.disallow,
-    allowRestart: RestartManager.allow,
+    disallowRestart: NativeSparks.disallow,
+    allowRestart: NativeSparks.allow,
     clearUpdates: NativeSparks.clearUpdates,
     InstallMode: {
       IMMEDIATE: NativeSparks.SparksInstallModeImmediate, // Restart the app immediately
