@@ -29,6 +29,7 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -44,6 +45,10 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
     private SettingsManager mSettingsManager;
     private SparksTelemetryManager mTelemetryManager;
     private SparksUpdateManager mUpdateManager;
+    
+    private  boolean _allowed = true;
+    private  boolean _restartInProgress = false;
+    private  ArrayList<Boolean> _restartQueue = new ArrayList<>();
 
     public SparksNativeModule(ReactApplicationContext reactContext, Sparks Sparks, SparksUpdateManager SparksUpdateManager, SparksTelemetryManager SparksTelemetryManager, SettingsManager settingsManager) {
         super(reactContext);
@@ -202,16 +207,84 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
 
         return instanceManager;
     }
+    
+    private void restartAppInternal(boolean onlyIfUpdateIsPending) {
+        if (this._restartInProgress) {
+            CodePushUtils.log("Restart request queued until the current restart is completed");
+            this._restartQueue.add(onlyIfUpdateIsPending);
+            return;
+        } else if (!this._allowed) {
+            CodePushUtils.log("Restart request queued until restarts are re-allowed");
+            this._restartQueue.add(onlyIfUpdateIsPending);
+            return;
+        }
+
+        this._restartInProgress = true;
+        if (!onlyIfUpdateIsPending || mSettingsManager.isPendingUpdate(null)) {
+            loadBundle();
+            CodePushUtils.log("Restarting app");
+            return;
+        }
+
+        this._restartInProgress = false;
+        if (this._restartQueue.size() > 0) {
+            boolean buf = this._restartQueue.get(0);
+            this._restartQueue.remove(0);
+            this.restartAppInternal(buf);
+        }
+    }
 
     @ReactMethod
+    public void allow(Promise promise) {
+        CodePushUtils.log("Re-allowing restarts");
+        this._allowed = true;
+
+        if (_restartQueue.size() > 0) {
+            CodePushUtils.log("Executing pending restart");
+            boolean buf = this._restartQueue.get(0);
+            this._restartQueue.remove(0);
+            this.restartAppInternal(buf);
+        }
+
+        promise.resolve(null);
+        return;
+    }
+
+    @ReactMethod
+    public void clearPendingRestart(Promise promise) {
+        this._restartQueue.clear();
+        promise.resolve(null);
+        return;
+    }
+
+    @ReactMethod
+    public void disallow(Promise promise) {
+        CodePushUtils.log("Disallowing restarts");
+        this._allowed = false;
+        promise.resolve(null);
+        return;
+    }
+
+    @ReactMethod
+    public void restartApp(boolean onlyIfUpdateIsPending, Promise promise) {
+        try {
+            restartAppInternal(onlyIfUpdateIsPending);
+            promise.resolve(null);
+        } catch(CodePushUnknownException e) {
+            CodePushUtils.log(e);
+            promise.reject(e);
+        }
+    }
+
+@ReactMethod
     public void downloadUpdate(final ReadableMap updatePackage, final boolean notifyProgress, final Promise promise) {
         AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
             @Override
             protected Void doInBackground(Void... params) {
                 try {
-                    JSONObject mutableUpdatePackage = SparksUtils.convertReadableToJsonObject(updatePackage);
-                    SparksUtils.setJSONValueForKey(mutableUpdatePackage, SparksConstants.BINARY_MODIFIED_TIME_KEY, "" + mSparks.getBinaryResourcesModifiedTime());
-                    mUpdateManager.downloadPackage(mutableUpdatePackage, mSparks.getAssetsBundleFileName(), new DownloadProgressCallback() {
+                    JSONObject mutableUpdatePackage = CodePushUtils.convertReadableToJsonObject(updatePackage);
+                    CodePushUtils.setJSONValueForKey(mutableUpdatePackage, CodePushConstants.BINARY_MODIFIED_TIME_KEY, "" + mCodePush.getBinaryResourcesModifiedTime());
+                    mUpdateManager.downloadPackage(mutableUpdatePackage, mCodePush.getAssetsBundleFileName(), new DownloadProgressCallback() {
                         private boolean hasScheduledNextFrame = false;
                         private DownloadProgress latestDownloadProgress = null;
 
@@ -253,18 +326,18 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
                         public void dispatchDownloadProgressEvent() {
                             getReactApplicationContext()
                                     .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                                    .emit(SparksConstants.DOWNLOAD_PROGRESS_EVENT_NAME, latestDownloadProgress.createWritableMap());
+                                    .emit(CodePushConstants.DOWNLOAD_PROGRESS_EVENT_NAME, latestDownloadProgress.createWritableMap());
                         }
-                    }, mSparks.getPublicKey());
+                    }, mCodePush.getPublicKey());
 
-                    JSONObject newPackage = mUpdateManager.getPackage(SparksUtils.tryGetString(updatePackage, SparksConstants.PACKAGE_HASH_KEY));
-                    promise.resolve(SparksUtils.convertJsonObjectToWritable(newPackage));
-                } catch (SparksInvalidUpdateException e) {
-                    SparksUtils.log(e);
-                    mSettingsManager.saveFailedUpdate(SparksUtils.convertReadableToJsonObject(updatePackage));
+                    JSONObject newPackage = mUpdateManager.getPackage(CodePushUtils.tryGetString(updatePackage, CodePushConstants.PACKAGE_HASH_KEY));
+                    promise.resolve(CodePushUtils.convertJsonObjectToWritable(newPackage));
+                } catch (CodePushInvalidUpdateException e) {
+                    CodePushUtils.log(e);
+                    mSettingsManager.saveFailedUpdate(CodePushUtils.convertReadableToJsonObject(updatePackage));
                     promise.reject(e);
-                } catch (IOException | SparksUnknownException e) {
-                    SparksUtils.log(e);
+                } catch (IOException | CodePushUnknownException e) {
+                    CodePushUtils.log(e);
                     promise.reject(e);
                 }
 
@@ -457,7 +530,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
                                     @Override
                                     public void run() {
                                         SparksUtils.log("Loading bundle on suspend");
-                                        loadBundle();
+                                        restartAppInternal(false);
                                     }
                                 };
 
@@ -471,7 +544,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
                                         if (installMode == SparksInstallMode.IMMEDIATE.getValue()
                                                 || durationInBackground >= SparksNativeModule.this.mMinimumBackgroundDuration) {
                                             SparksUtils.log("Loading bundle on resume");
-                                            loadBundle();
+                                            restartAppInternal(false);
                                         }
                                     }
                                 }
@@ -576,24 +649,6 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
             mTelemetryManager.recordStatusReported(statusReport);
         } catch(SparksUnknownException e) {
             SparksUtils.log(e);
-        }
-    }
-
-    @ReactMethod
-    public void restartApp(boolean onlyIfUpdateIsPending, Promise promise) {
-        try {
-            // If this is an unconditional restart request, or there
-            // is current pending update, then reload the app.
-            if (!onlyIfUpdateIsPending || mSettingsManager.isPendingUpdate(null)) {
-                loadBundle();
-                promise.resolve(true);
-                return;
-            }
-
-            promise.resolve(false);
-        } catch(SparksUnknownException e) {
-            SparksUtils.log(e);
-            promise.reject(e);
         }
     }
 
