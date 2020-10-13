@@ -1,5 +1,4 @@
 import { NativeEventEmitter } from "react-native";
-import RestartManager from "./RestartManager";
 import log from "./logging";
 
 module.exports = (NativeSparks) => {
