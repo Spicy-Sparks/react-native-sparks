@@ -85,17 +85,12 @@ static NSString *const LatestRollbackCountKey = @"count";
 
 + (void)initialize
 {
-    _allowed = YES;
-    _restartInProgress = NO;
-    _restartQueue = [NSMutableArray arrayWithCapacity:1];
-    
     [super initialize];
     if (self == [Sparks class]) {
         // Use the mainBundle by default.
         bundleResourceBundle = [NSBundle mainBundle];
     }
 }
-
 #pragma mark - Public Obj-C API
 
 + (NSURL *)binaryBundleURL
@@ -364,8 +359,11 @@ static NSString *const LatestRollbackCountKey = @"count";
 
 - (instancetype)init
 {
+    _allowed = YES;
+    _restartInProgress = NO;
+    _restartQueue = [NSMutableArray arrayWithCapacity:1];
+    
     self = [super init];
-
     if (self) {
         [self initializeUpdateAfterRestart];
     }
