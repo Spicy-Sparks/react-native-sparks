@@ -17,7 +17,7 @@ Pod::Spec.new do |s|
   s.source_files = 'ios/Sparks/*.{h,m}'
   s.public_header_files = ['ios/Sparks/Sparks.h']
 
-  s.dependency 'React'
+  s.dependency 'React-Core'
   s.dependency 'SSZipArchive', '~> 2.2.2'
   s.dependency 'JWT', '~> 3.0.0-beta.12'
   s.dependency 'Base64', '~> 1.1'
