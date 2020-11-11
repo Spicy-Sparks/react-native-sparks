@@ -210,11 +210,11 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
     
     private void restartAppInternal(boolean onlyIfUpdateIsPending) {
         if (this._restartInProgress) {
-            CodePushUtils.log("Restart request queued until the current restart is completed");
+            SparksUtils.log("Restart request queued until the current restart is completed");
             this._restartQueue.add(onlyIfUpdateIsPending);
             return;
         } else if (!this._allowed) {
-            CodePushUtils.log("Restart request queued until restarts are re-allowed");
+            SparksUtils.log("Restart request queued until restarts are re-allowed");
             this._restartQueue.add(onlyIfUpdateIsPending);
             return;
         }
@@ -222,7 +222,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
         this._restartInProgress = true;
         if (!onlyIfUpdateIsPending || mSettingsManager.isPendingUpdate(null)) {
             loadBundle();
-            CodePushUtils.log("Restarting app");
+            SparksUtils.log("Restarting app");
             return;
         }
 
@@ -236,11 +236,11 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void allow(Promise promise) {
-        CodePushUtils.log("Re-allowing restarts");
+        SparksUtils.log("Re-allowing restarts");
         this._allowed = true;
 
         if (_restartQueue.size() > 0) {
-            CodePushUtils.log("Executing pending restart");
+            SparksUtils.log("Executing pending restart");
             boolean buf = this._restartQueue.get(0);
             this._restartQueue.remove(0);
             this.restartAppInternal(buf);
@@ -259,7 +259,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void disallow(Promise promise) {
-        CodePushUtils.log("Disallowing restarts");
+        SparksUtils.log("Disallowing restarts");
         this._allowed = false;
         promise.resolve(null);
         return;
@@ -270,8 +270,8 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
         try {
             restartAppInternal(onlyIfUpdateIsPending);
             promise.resolve(null);
-        } catch(CodePushUnknownException e) {
-            CodePushUtils.log(e);
+        } catch(SparksUnknownException e) {
+            SparksUtils.log(e);
             promise.reject(e);
         }
     }
@@ -282,9 +282,9 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
             @Override
             protected Void doInBackground(Void... params) {
                 try {
-                    JSONObject mutableUpdatePackage = CodePushUtils.convertReadableToJsonObject(updatePackage);
-                    CodePushUtils.setJSONValueForKey(mutableUpdatePackage, CodePushConstants.BINARY_MODIFIED_TIME_KEY, "" + mCodePush.getBinaryResourcesModifiedTime());
-                    mUpdateManager.downloadPackage(mutableUpdatePackage, mCodePush.getAssetsBundleFileName(), new DownloadProgressCallback() {
+                    JSONObject mutableUpdatePackage = SparksUtils.convertReadableToJsonObject(updatePackage);
+                    SparksUtils.setJSONValueForKey(mutableUpdatePackage, SparksConstants.BINARY_MODIFIED_TIME_KEY, "" + mSparks.getBinaryResourcesModifiedTime());
+                    mUpdateManager.downloadPackage(mutableUpdatePackage, mSparks.getAssetsBundleFileName(), new DownloadProgressCallback() {
                         private boolean hasScheduledNextFrame = false;
                         private DownloadProgress latestDownloadProgress = null;
 
@@ -326,18 +326,18 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
                         public void dispatchDownloadProgressEvent() {
                             getReactApplicationContext()
                                     .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                                    .emit(CodePushConstants.DOWNLOAD_PROGRESS_EVENT_NAME, latestDownloadProgress.createWritableMap());
+                                    .emit(SparksConstants.DOWNLOAD_PROGRESS_EVENT_NAME, latestDownloadProgress.createWritableMap());
                         }
-                    }, mCodePush.getPublicKey());
+                    }, mSparks.getPublicKey());
 
-                    JSONObject newPackage = mUpdateManager.getPackage(CodePushUtils.tryGetString(updatePackage, CodePushConstants.PACKAGE_HASH_KEY));
-                    promise.resolve(CodePushUtils.convertJsonObjectToWritable(newPackage));
-                } catch (CodePushInvalidUpdateException e) {
-                    CodePushUtils.log(e);
-                    mSettingsManager.saveFailedUpdate(CodePushUtils.convertReadableToJsonObject(updatePackage));
+                    JSONObject newPackage = mUpdateManager.getPackage(SparksUtils.tryGetString(updatePackage, SparksConstants.PACKAGE_HASH_KEY));
+                    promise.resolve(SparksUtils.convertJsonObjectToWritable(newPackage));
+                } catch (SparksInvalidUpdateException e) {
+                    SparksUtils.log(e);
+                    mSettingsManager.saveFailedUpdate(SparksUtils.convertReadableToJsonObject(updatePackage));
                     promise.reject(e);
-                } catch (IOException | CodePushUnknownException e) {
-                    CodePushUtils.log(e);
+                } catch (IOException | SparksUnknownException e) {
+                    SparksUtils.log(e);
                     promise.reject(e);
                 }
 
