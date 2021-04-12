@@ -46,7 +46,7 @@ static NSString * const PublicKeyKey = @"publicKey";
     }
 
     if (!serverURL) {
-        serverURL = @"https://sparks.moonn.ae/";
+        serverURL = @"https://sparks.spicysparks.com/";
     }
 
     _configDictionary = [NSMutableDictionary dictionary];
