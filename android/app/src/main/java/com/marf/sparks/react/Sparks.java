@@ -40,7 +40,7 @@ public class Sparks implements ReactPackage {
 
     // Config properties.
     private String mDeploymentKey;
-    private static String mServerUrl = "https://sparks.moonn.ae/";
+    private static String mServerUrl = "https://sparks.spicysparks.com/";
 
     private Context mContext;
     private final boolean mIsDebugMode;
