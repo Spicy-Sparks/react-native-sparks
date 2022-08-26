@@ -1,4 +1,4 @@
-package com.marf.sparks.react;
+package com.microsoft.codepush.react;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -25,8 +25,8 @@ public class FileUtils {
         for (File sourceFile : sourceDir.listFiles()) {
             if (sourceFile.isDirectory()) {
                 copyDirectoryContents(
-                        SparksUtils.appendPathComponent(sourceDirectoryPath, sourceFile.getName()),
-                        SparksUtils.appendPathComponent(destinationDirectoryPath, sourceFile.getName()));
+                        CodePushUtils.appendPathComponent(sourceDirectoryPath, sourceFile.getName()),
+                        CodePushUtils.appendPathComponent(destinationDirectoryPath, sourceFile.getName()));
             } else {
                 File destFile = new File(destDir, sourceFile.getName());
                 FileInputStream fromFileStream = null;
@@ -47,7 +47,7 @@ public class FileUtils {
                         if (fromBufferedStream != null) fromBufferedStream.close();
                         if (destStream != null) destStream.close();
                     } catch (IOException e) {
-                        throw new SparksUnknownException("Error closing IO resources.", e);
+                        throw new CodePushUnknownException("Error closing IO resources.", e);
                     }
                 }
             }
@@ -56,7 +56,7 @@ public class FileUtils {
 
     public static void deleteDirectoryAtPath(String directoryPath) {
         if (directoryPath == null) {
-            SparksUtils.log("deleteDirectoryAtPath attempted with null directoryPath");
+            CodePushUtils.log("deleteDirectoryAtPath attempted with null directoryPath");
             return;
         }
         File file = new File(directoryPath);
@@ -82,7 +82,7 @@ public class FileUtils {
         }
 
         if (!file.delete()) {
-            SparksUtils.log("Error deleting file " + file.getName());
+            CodePushUtils.log("Error deleting file " + file.getName());
         }
     }
 
@@ -98,7 +98,7 @@ public class FileUtils {
 
         File newFilePath = new File(newFolderPath, newFileName);
         if (!fileToMove.renameTo(newFilePath)) {
-            throw new SparksUnknownException("Unable to move file from " +
+            throw new CodePushUnknownException("Unable to move file from " +
                     fileToMove.getAbsolutePath() + " to " + newFilePath.getAbsolutePath() + ".");
         }
     }
@@ -122,15 +122,14 @@ public class FileUtils {
             if (fin != null) fin.close();
         }
     }
-    
-    private static String validateFileName(String fileName, String targetDirectory) throws IOException {
-        File file = new File(fileName);
+
+    private static String validateFileName(String fileName, File destinationFolder) throws IOException {
+        String destinationFolderCanonicalPath = destinationFolder.getCanonicalPath() + File.separator;
+
+        File file = new File(destinationFolderCanonicalPath, fileName);
         String canonicalPath = file.getCanonicalPath();
 
-        File targetFile = new File(targetDirectory);
-        String targetCanonicalPath = targetFile.getCanonicalPath();
-
-        if (!canonicalPath.startsWith(targetCanonicalPath)) {
+        if (!canonicalPath.startsWith(destinationFolderCanonicalPath)) {
             throw new IllegalStateException("File is outside extraction target directory.");
         }
 
@@ -151,13 +150,13 @@ public class FileUtils {
             if (destinationFolder.exists()) {
                 deleteFileOrFolderSilently(destinationFolder);
             }
-            
+
             destinationFolder.mkdirs();
 
             byte[] buffer = new byte[WRITE_BUFFER_SIZE];
             while ((entry = zipStream.getNextEntry()) != null) {
-                String fileName = validateFileName(entry.getName(), ".");
-                File file = new File(destinationFolder, fileName);
+                String fileName = validateFileName(entry.getName(), destinationFolder);
+                File file = new File(fileName);
                 if (entry.isDirectory()) {
                     file.mkdirs();
                 } else {
@@ -187,7 +186,7 @@ public class FileUtils {
                 if (bufferedStream != null) bufferedStream.close();
                 if (fileStream != null) fileStream.close();
             } catch (IOException e) {
-                throw new SparksUnknownException("Error closing IO resources.", e);
+                throw new CodePushUnknownException("Error closing IO resources.", e);
             }
         }
     }
