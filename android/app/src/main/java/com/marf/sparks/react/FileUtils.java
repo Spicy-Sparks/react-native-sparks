@@ -1,4 +1,4 @@
-package com.microsoft.codepush.react;
+package com.marf.sparks.react;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -25,8 +25,8 @@ public class FileUtils {
         for (File sourceFile : sourceDir.listFiles()) {
             if (sourceFile.isDirectory()) {
                 copyDirectoryContents(
-                        CodePushUtils.appendPathComponent(sourceDirectoryPath, sourceFile.getName()),
-                        CodePushUtils.appendPathComponent(destinationDirectoryPath, sourceFile.getName()));
+                        SparksUtils.appendPathComponent(sourceDirectoryPath, sourceFile.getName()),
+                        SparksUtils.appendPathComponent(destinationDirectoryPath, sourceFile.getName()));
             } else {
                 File destFile = new File(destDir, sourceFile.getName());
                 FileInputStream fromFileStream = null;
@@ -47,7 +47,7 @@ public class FileUtils {
                         if (fromBufferedStream != null) fromBufferedStream.close();
                         if (destStream != null) destStream.close();
                     } catch (IOException e) {
-                        throw new CodePushUnknownException("Error closing IO resources.", e);
+                        throw new SparksUnknownException("Error closing IO resources.", e);
                     }
                 }
             }
@@ -56,7 +56,7 @@ public class FileUtils {
 
     public static void deleteDirectoryAtPath(String directoryPath) {
         if (directoryPath == null) {
-            CodePushUtils.log("deleteDirectoryAtPath attempted with null directoryPath");
+            SparksUtils.log("deleteDirectoryAtPath attempted with null directoryPath");
             return;
         }
         File file = new File(directoryPath);
@@ -82,7 +82,7 @@ public class FileUtils {
         }
 
         if (!file.delete()) {
-            CodePushUtils.log("Error deleting file " + file.getName());
+            SparksUtils.log("Error deleting file " + file.getName());
         }
     }
 
@@ -98,7 +98,7 @@ public class FileUtils {
 
         File newFilePath = new File(newFolderPath, newFileName);
         if (!fileToMove.renameTo(newFilePath)) {
-            throw new CodePushUnknownException("Unable to move file from " +
+            throw new SparksUnknownException("Unable to move file from " +
                     fileToMove.getAbsolutePath() + " to " + newFilePath.getAbsolutePath() + ".");
         }
     }
@@ -186,7 +186,7 @@ public class FileUtils {
                 if (bufferedStream != null) bufferedStream.close();
                 if (fileStream != null) fileStream.close();
             } catch (IOException e) {
-                throw new CodePushUnknownException("Error closing IO resources.", e);
+                throw new SparksUnknownException("Error closing IO resources.", e);
             }
         }
     }
