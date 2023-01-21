@@ -690,4 +690,14 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
         SparksUtils.log("Clearing updates.");
         mSparks.clearUpdates();
     }
+    
+    @ReactMethod
+    public void addListener(String eventName) {
+         // Set up any upstream listeners or background tasks as necessary
+    }
+
+    @ReactMethod
+    public void removeListeners(Integer count) {
+         // Remove upstream listeners, stop unnecessary background tasks
+    }
 }
