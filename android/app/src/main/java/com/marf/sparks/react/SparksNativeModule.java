@@ -63,11 +63,11 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
         // Initialize module state while we have a reference to the current context.
         mBinaryContentsHash = SparksUpdateUtils.getHashForBinaryContents(reactContext, mSparks.isDebugMode());
         
-        SharedPreferences preferences = codePush.getContext().getSharedPreferences(CodePushConstants.CODE_PUSH_PREFERENCES, 0);
-        mClientUniqueId = preferences.getString(CodePushConstants.CLIENT_UNIQUE_ID_KEY, null);
+        SharedPreferences preferences = mSparks.getContext().getSharedPreferences(SparksConstants.CODE_PUSH_PREFERENCES, 0);
+        mClientUniqueId = preferences.getString(SparksConstants.CLIENT_UNIQUE_ID_KEY, null);
         if (mClientUniqueId == null) {
             mClientUniqueId = UUID.randomUUID().toString();
-            preferences.edit().putString(CodePushConstants.CLIENT_UNIQUE_ID_KEY, mClientUniqueId).apply();
+            preferences.edit().putString(SparksConstants.CLIENT_UNIQUE_ID_KEY, mClientUniqueId).apply();
         }
     }
 
