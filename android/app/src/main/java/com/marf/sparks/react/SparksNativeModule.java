@@ -8,10 +8,14 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.view.View;
 
+import androidx.annotation.OptIn;
+
 import com.facebook.react.ReactApplication;
+import com.facebook.react.ReactHost;
 import com.facebook.react.ReactInstanceManager;
 import com.facebook.react.ReactRootView;
 import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.BaseJavaModule;
 import com.facebook.react.bridge.JSBundleLoader;
 import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.Promise;
@@ -20,9 +24,14 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.common.annotations.UnstableReactNativeAPI;
+import com.facebook.react.devsupport.interfaces.DevSupportManager;
 import com.facebook.react.modules.core.ChoreographerCompat;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.facebook.react.modules.core.ReactChoreographer;
+import com.facebook.react.modules.debug.interfaces.DeveloperSettings;
+import com.facebook.react.runtime.ReactHostDelegate;
+import com.facebook.react.runtime.ReactHostImpl;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -30,6 +39,7 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -37,7 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public class SparksNativeModule extends ReactContextBaseJavaModule {
+@OptIn(markerClass = UnstableReactNativeAPI.class)
+public class SparksNativeModule extends BaseJavaModule {
     private String mBinaryContentsHash = null;
     private String mClientUniqueId = null;
     private LifecycleEventListener mLifecycleEventListener = null;
@@ -47,10 +58,10 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
     private SettingsManager mSettingsManager;
     private SparksTelemetryManager mTelemetryManager;
     private SparksUpdateManager mUpdateManager;
-    
-    private  boolean _allowed = true;
-    private  boolean _restartInProgress = false;
-    private  ArrayList<Boolean> _restartQueue = new ArrayList<>();
+
+    private boolean _allowed = true;
+    private boolean _restartInProgress = false;
+    private ArrayList<Boolean> _restartQueue = new ArrayList<>();
 
     public SparksNativeModule(ReactApplicationContext reactContext, Sparks Sparks, SparksUpdateManager SparksUpdateManager, SparksTelemetryManager SparksTelemetryManager, SettingsManager settingsManager) {
         super(reactContext);
@@ -62,7 +73,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
 
         // Initialize module state while we have a reference to the current context.
         mBinaryContentsHash = SparksUpdateUtils.getHashForBinaryContents(reactContext, mSparks.isDebugMode());
-        
+
         SharedPreferences preferences = mSparks.getContext().getSharedPreferences(SparksConstants.CODE_PUSH_PREFERENCES, 0);
         mClientUniqueId = preferences.getString(SparksConstants.CLIENT_UNIQUE_ID_KEY, null);
         if (mClientUniqueId == null) {
@@ -93,7 +104,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
     }
 
     private void loadBundleLegacy() {
-        final Activity currentActivity = getCurrentActivity();
+        final Activity currentActivity = getReactApplicationContext().getCurrentActivity();
         if (currentActivity == null) {
             // The currentActivity can be null if it is backgrounded / destroyed, so we simply
             // no-op to prevent any null pointer exceptions.
@@ -124,65 +135,159 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
             bundleLoaderField.setAccessible(true);
             bundleLoaderField.set(instanceManager, latestJSBundleLoader);
         } catch (Exception e) {
-            SparksUtils.log("Unable to set JSBundle - Sparks may not support this version of React Native");
+            SparksUtils.log("Unable to set JSBundle of ReactInstanceManager - Sparks may not support this version of React Native");
+            throw new IllegalAccessException("Could not setJSBundle");
+        }
+    }
+
+    // Use reflection to find and set the appropriate fields on ReactHostDelegate. See #556 for a proposal for a less brittle way
+    // to approach this.
+    private void setJSBundle(ReactHostDelegate reactHostDelegate, String latestJSBundleFile) throws IllegalAccessException {
+        try {
+            JSBundleLoader latestJSBundleLoader;
+            if (latestJSBundleFile.toLowerCase().startsWith("assets://")) {
+                latestJSBundleLoader = JSBundleLoader.createAssetLoader(getReactApplicationContext(), latestJSBundleFile, false);
+            } else {
+                latestJSBundleLoader = JSBundleLoader.createFileLoader(latestJSBundleFile);
+            }
+
+            Field bundleLoaderField = reactHostDelegate.getClass().getDeclaredField("jsBundleLoader");
+            bundleLoaderField.setAccessible(true);
+            bundleLoaderField.set(reactHostDelegate, latestJSBundleLoader);
+        } catch (Exception e) {
+            SparksUtils.log("Unable to set JSBundle of ReactHostDelegate - Sparks may not support this version of React Native");
             throw new IllegalAccessException("Could not setJSBundle");
         }
     }
 
     private void loadBundle() {
         clearLifecycleEventListener();
-        try {
-            mSparks.clearDebugCacheIfNeeded(resolveInstanceManager());
-        } catch(Exception e) {
-            // If we got error in out reflection we should clear debug cache anyway.
-            mSparks.clearDebugCacheIfNeeded(null);
-        }
 
-        try {
-            // #1) Get the ReactInstanceManager instance, which is what includes the
-            //     logic to reload the current React context.
-            final ReactInstanceManager instanceManager = resolveInstanceManager();
-            if (instanceManager == null) {
-                return;
+        if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
+            try {
+                DevSupportManager devSupportManager = null;
+                ReactHost reactHost = resolveReactHost();
+                if (reactHost != null) {
+                    devSupportManager = reactHost.getDevSupportManager();
+                }
+                boolean isLiveReloadEnabled = isLiveReloadEnabled(devSupportManager);
+
+                mSparks.clearDebugCacheIfNeeded(isLiveReloadEnabled);
+            } catch (Exception e) {
+                // If we got error in out reflection we should clear debug cache anyway.
+                mSparks.clearDebugCacheIfNeeded(false);
             }
 
-            String latestJSBundleFile = mSparks.getJSBundleFileInternal(mSparks.getAssetsBundleFileName());
-
-            // #2) Update the locally stored JS bundle file path
-            setJSBundle(instanceManager, latestJSBundleFile);
-
-            // #3) Get the context creation method and fire it on the UI thread (which RN enforces)
-            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        // We don't need to resetReactRootViews anymore 
-                        // due the issue https://github.com/facebook/react-native/issues/14533
-                        // has been fixed in RN 0.46.0
-                        //resetReactRootViews(instanceManager);
-
-                        instanceManager.recreateReactContextInBackground();
-                        mSparks.initializeUpdateAfterRestart();
-                    } catch (Exception e) {
-                        // The recreation method threw an unknown exception
-                        // so just simply fallback to restarting the Activity (if it exists)
-                        loadBundleLegacy();
-                    }
+            try {
+                // #1) Get the ReactHost instance, which is what includes the
+                //     logic to reload the current React context.
+                final ReactHost reactHost = resolveReactHost();
+                if (reactHost == null) {
+                    return;
                 }
-            });
 
-        } catch (Exception e) {
-            // Our reflection logic failed somewhere
-            // so fall back to restarting the Activity (if it exists)
-            SparksUtils.log("Failed to load the bundle, falling back to restarting the Activity (if it exists). " + e.getMessage());
-            loadBundleLegacy();
+                String latestJSBundleFile = mSparks.getJSBundleFileInternal(mSparks.getAssetsBundleFileName());
+
+                // #2) Update the locally stored JS bundle file path
+                setJSBundle(getReactHostDelegate((ReactHostImpl) reactHost), latestJSBundleFile);
+
+                // #3) Get the context creation method
+                try {
+                    reactHost.reload("Sparks triggers reload");
+                    mSparks.initializeUpdateAfterRestart();
+                } catch (Exception e) {
+                    // The recreation method threw an unknown exception
+                    // so just simply fallback to restarting the Activity (if it exists)
+                    loadBundleLegacy();
+                }
+
+            } catch (Exception e) {
+                // Our reflection logic failed somewhere
+                // so fall back to restarting the Activity (if it exists)
+                SparksUtils.log("Failed to load the bundle, falling back to restarting the Activity (if it exists). " + e.getMessage());
+                loadBundleLegacy();
+            }
+        } else {
+            try {
+                DevSupportManager devSupportManager = null;
+                ReactInstanceManager reactInstanceManager = resolveInstanceManager();
+                if (reactInstanceManager != null) {
+                    devSupportManager = reactInstanceManager.getDevSupportManager();
+                }
+                boolean isLiveReloadEnabled = isLiveReloadEnabled(devSupportManager);
+
+                mSparks.clearDebugCacheIfNeeded(isLiveReloadEnabled);
+            } catch (Exception e) {
+                // If we got error in out reflection we should clear debug cache anyway.
+                mSparks.clearDebugCacheIfNeeded(false);
+            }
+
+            try {
+                // #1) Get the ReactInstanceManager instance, which is what includes the
+                //     logic to reload the current React context.
+                final ReactInstanceManager instanceManager = resolveInstanceManager();
+                if (instanceManager == null) {
+                    return;
+                }
+
+                String latestJSBundleFile = mSparks.getJSBundleFileInternal(mSparks.getAssetsBundleFileName());
+
+                // #2) Update the locally stored JS bundle file path
+                setJSBundle(instanceManager, latestJSBundleFile);
+
+                // #3) Get the context creation method and fire it on the UI thread (which RN enforces)
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            // We don't need to resetReactRootViews anymore
+                            // due the issue https://github.com/facebook/react-native/issues/14533
+                            // has been fixed in RN 0.46.0
+                            //resetReactRootViews(instanceManager);
+
+                            instanceManager.recreateReactContextInBackground();
+                            mSparks.initializeUpdateAfterRestart();
+                        } catch (Exception e) {
+                            // The recreation method threw an unknown exception
+                            // so just simply fallback to restarting the Activity (if it exists)
+                            loadBundleLegacy();
+                        }
+                    }
+                });
+
+            } catch (Exception e) {
+                // Our reflection logic failed somewhere
+                // so fall back to restarting the Activity (if it exists)
+                SparksUtils.log("Failed to load the bundle, falling back to restarting the Activity (if it exists). " + e.getMessage());
+                loadBundleLegacy();
+            }
         }
+    }
+
+    private boolean isLiveReloadEnabled(DevSupportManager devSupportManager) {
+        if (devSupportManager == null) {
+            return false;
+        }
+
+        DeveloperSettings devSettings = devSupportManager.getDevSettings();
+        Method[] methods = devSettings.getClass().getMethods();
+        for (Method m : methods) {
+            if (m.getName().equals("isReloadOnJSChangeEnabled")) {
+                try {
+                    return (boolean) m.invoke(devSettings);
+                } catch (Exception x) {
+                    return false;
+                }
+            }
+        }
+
+        return false;
     }
 
     private void resetReactRootViews(ReactInstanceManager instanceManager) throws NoSuchFieldException, IllegalAccessException {
         Field mAttachedRootViewsField = instanceManager.getClass().getDeclaredField("mAttachedRootViews");
         mAttachedRootViewsField.setAccessible(true);
-        List<ReactRootView> mAttachedRootViews = (List<ReactRootView>)mAttachedRootViewsField.get(instanceManager);
+        List<ReactRootView> mAttachedRootViews = (List<ReactRootView>) mAttachedRootViewsField.get(instanceManager);
         for (ReactRootView reactRootView : mAttachedRootViews) {
             reactRootView.removeAllViews();
             reactRootView.setId(View.NO_ID);
@@ -205,7 +310,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
             return instanceManager;
         }
 
-        final Activity currentActivity = getCurrentActivity();
+        final Activity currentActivity = getReactApplicationContext().getCurrentActivity();
         if (currentActivity == null) {
             return null;
         }
@@ -215,7 +320,22 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
 
         return instanceManager;
     }
-    
+
+    private ReactHost resolveReactHost() throws NoSuchFieldException, IllegalAccessException {
+        ReactHost reactHost = Sparks.getReactHost();
+        if (reactHost != null) {
+            return reactHost;
+        }
+
+        final Activity currentActivity = getReactApplicationContext().getCurrentActivity();
+        if (currentActivity == null) {
+            return null;
+        }
+
+        ReactApplication reactApplication = (ReactApplication) currentActivity.getApplication();
+        return reactApplication.getReactHost();
+    }
+
     private void restartAppInternal(boolean onlyIfUpdateIsPending) {
         if (this._restartInProgress) {
             SparksUtils.log("Restart request queued until the current restart is completed");
@@ -278,13 +398,13 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
         try {
             restartAppInternal(onlyIfUpdateIsPending);
             promise.resolve(null);
-        } catch(SparksUnknownException e) {
+        } catch (SparksUnknownException e) {
             SparksUtils.log(e);
             promise.reject(e);
         }
     }
 
-@ReactMethod
+    @ReactMethod
     public void downloadUpdate(final ReadableMap updatePackage, final boolean notifyProgress, final Promise promise) {
         AsyncTask<Void, Void, Void> asyncTask = new AsyncTask<Void, Void, Void>() {
             @Override
@@ -359,7 +479,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void getConfiguration(Promise promise) {
         try {
-            WritableMap configMap =  Arguments.createMap();
+            WritableMap configMap = Arguments.createMap();
             configMap.putString("appVersion", mSparks.getAppVersion());
             configMap.putString("clientUniqueId", mClientUniqueId);
             configMap.putString("deploymentKey", mSparks.getDeploymentKey());
@@ -371,7 +491,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
             }
 
             promise.resolve(configMap);
-        } catch(SparksUnknownException e) {
+        } catch (SparksUnknownException e) {
             SparksUtils.log(e);
             promise.reject(e);
         }
@@ -433,7 +553,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
                     SparksUtils.log(e.getMessage());
                     clearUpdates();
                     promise.resolve(null);
-                } catch(SparksUnknownException e) {
+                } catch (SparksUnknownException e) {
                     SparksUtils.log(e);
                     promise.reject(e);
                 }
@@ -491,7 +611,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
                     }
 
                     promise.resolve("");
-                } catch(SparksUnknownException e) {
+                } catch (SparksUnknownException e) {
                     SparksUtils.log(e);
                     promise.reject(e);
                 }
@@ -518,11 +638,11 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
                     }
 
                     if (installMode == SparksInstallMode.ON_NEXT_RESUME.getValue() ||
-                        // We also add the resume listener if the installMode is IMMEDIATE, because
-                        // if the current activity is backgrounded, we want to reload the bundle when
-                        // it comes back into the foreground.
-                        installMode == SparksInstallMode.IMMEDIATE.getValue() ||
-                        installMode == SparksInstallMode.ON_NEXT_SUSPEND.getValue()) {
+                            // We also add the resume listener if the installMode is IMMEDIATE, because
+                            // if the current activity is backgrounded, we want to reload the bundle when
+                            // it comes back into the foreground.
+                            installMode == SparksInstallMode.IMMEDIATE.getValue() ||
+                            installMode == SparksInstallMode.ON_NEXT_SUSPEND.getValue()) {
 
                         // Store the minimum duration on the native module as an instance
                         // variable instead of relying on a closure below, so that any
@@ -578,7 +698,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
                     }
 
                     promise.resolve("");
-                } catch(SparksUnknownException e) {
+                } catch (SparksUnknownException e) {
                     SparksUtils.log(e);
                     promise.reject(e);
                 }
@@ -634,7 +754,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
                     && packageHash.length() > 0
                     && packageHash.equals(mUpdateManager.getCurrentPackageHash());
             promise.resolve(isFirstRun);
-        } catch(SparksUnknownException e) {
+        } catch (SparksUnknownException e) {
             SparksUtils.log(e);
             promise.reject(e);
         }
@@ -645,7 +765,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
         try {
             mSettingsManager.removePendingUpdate();
             promise.resolve("");
-        } catch(SparksUnknownException e) {
+        } catch (SparksUnknownException e) {
             SparksUtils.log(e);
             promise.reject(e);
         }
@@ -655,7 +775,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
     public void recordStatusReported(ReadableMap statusReport) {
         try {
             mTelemetryManager.recordStatusReported(statusReport);
-        } catch(SparksUnknownException e) {
+        } catch (SparksUnknownException e) {
             SparksUtils.log(e);
         }
     }
@@ -664,7 +784,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
     public void saveStatusReportForRetry(ReadableMap statusReport) {
         try {
             mTelemetryManager.saveStatusReportForRetry(statusReport);
-        } catch(SparksUnknownException e) {
+        } catch (SparksUnknownException e) {
             SparksUtils.log(e);
         }
     }
@@ -681,7 +801,7 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
                     throw new SparksUnknownException("Unable to replace current bundle", e);
                 }
             }
-        } catch(SparksUnknownException | SparksMalformedDataException e) {
+        } catch (SparksUnknownException | SparksMalformedDataException e) {
             SparksUtils.log(e);
         }
     }
@@ -698,14 +818,28 @@ public class SparksNativeModule extends ReactContextBaseJavaModule {
         SparksUtils.log("Clearing updates.");
         mSparks.clearUpdates();
     }
-    
+
     @ReactMethod
     public void addListener(String eventName) {
-         // Set up any upstream listeners or background tasks as necessary
+        // Set up any upstream listeners or background tasks as necessary
     }
 
     @ReactMethod
     public void removeListeners(Integer count) {
-         // Remove upstream listeners, stop unnecessary background tasks
+        // Remove upstream listeners, stop unnecessary background tasks
+    }
+
+    public ReactHostDelegate getReactHostDelegate(ReactHostImpl reactHostImpl) {
+        try {
+            Class<?> clazz = reactHostImpl.getClass();
+            Field field = clazz.getDeclaredField("mReactHostDelegate");
+            field.setAccessible(true);
+
+            // Get the value of the field for the provided instance
+            return (ReactHostDelegate) field.get(reactHostImpl);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 }
